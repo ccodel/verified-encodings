@@ -3,7 +3,7 @@
   This file contains the definitions of and basic operations on variables, literals,
   clauses, and conjunctive normal form.
 
-  Authors: Cayden Codel, Jeremy Avigad
+  Authors: Cayden Codel, Jeremy Avigad, Marijn Heule
   Carnegie Mellon University
 
 -/

@@ -3,7 +3,7 @@
   This file contains the definitions of and basic operations on variables, literals,
   clauses, and conjunctive normal form.
 
-  Authors: Cayden Codel, Jeremy Avigad
+  Authors: Cayden Codel, Jeremy Avigad, Marijn Heule
   Carnegie Mellon University
 
 -/
@@ -259,10 +259,6 @@ namespace explode
 open literal
 open clause
 
-def insert_pos (n : nat) (c : clause) : clause := insert (Pos n) c
-
-def insert_neg (n : nat) (c : clause) : clause := insert (Neg n) c
-
 -- NOTE: The above two are the "pure" versions of the functions. However, to prove
 -- injectivity, we can sus it by using a bijective verion, even if the second case is never seen
 def bij_pos (n : nat) (c : clause) : clause := cond ((Pos n) ∈ c) (erase c (Pos n)) (insert (Pos n) c)
@@ -383,11 +379,104 @@ def expl : list nat → finset clause
       -- Why must I have "open clause" about 10 lines above to write insert?
     (expl ns).image (bij_pos n) ∪ (expl ns).image (bij_neg n)
 
-def expl_correct : list nat → finset clause :=
+def expl_correct : list nat → finset clause
   | []        := ∅
   | [n]       := {{Pos n}, {Neg n}}
-  | (n :: ns) :=
-      (expl ns).image (insert_pos n) ∪ 
+  | (n :: ns) := (expl ns).image (insert (Pos n)) ∪ (expl ns).image (insert (Neg n))
+
+-- This version uses natural numbers to ensure non-duplication, etc.
+-- Generates all sets with literals between 1 and n inclusive
+def expl_nat : nat → finset clause
+  | 0       := ∅
+  | 1       := {{Pos 1}, {Neg 1}}
+  | (n + 1) := (expl_nat n).image (insert (Pos (n + 1))) ∪ (expl_nat n).image (insert (Neg (n + 1)))
+
+lemma thing {n m : nat} (h1 : m < n) (h2 : n ≤ m + 1) : n = m + 1 :=
+begin
+  have h3 : m + 1 ≤ n, from nat.lt_of_succ_le h1,
+  exact le_antisymm h2 h3,
+end
+
+lemma thing2 {n : nat} (h : 0 < n) : n = (n - 1) + 1 :=
+begin
+  induction n with d hd,
+  exfalso,
+  finish,
+  simp,
+end
+
+-- Note: Mathematically, "total" is an overloaded term, and almost certainly not the correct term here
+-- What I mean is that if the element is in any set under f, then it's in the image, no matter the makeup of the parent set set
+lemma mem_of_total_image {α β : Type} [decidable_eq β] {f : finset α → finset β} {b : β}
+  {s : finset α} {sₐ : finset (finset α)} {sₑ : finset β}
+  : (∀ (s : finset α), b ∈ f s) → sₑ ∈ finset.image f sₐ → b ∈ sₑ :=
+begin
+  intros s_b_in_fs se_in_image,
+  simp at se_in_image,
+  cases se_in_image,
+  cases se_in_image_h,
+  rw ← se_in_image_h_right,
+  exact s_b_in_fs se_in_image_w,
+end
+
+lemma expl_mem_of_mem {n m : nat} (h : n > 0) (hm : 0 < m ∧ m ≤ n) : ∀ c ∈ (expl_nat n), ∃ l ∈ c, m = literal.var l :=
+begin
+  intros c cin,
+  induction n with d hd,
+  exfalso,
+  assumption, -- How does assumption work?
+
+  cases classical.em (d = 0),
+  rw nat.succ_eq_add_one at cin,
+  simp [h_1] at cin,
+  unfold expl_nat at cin,
+
+  rw nat.succ_eq_add_one at hm,
+  rw h_1 at hm,
+  simp at *,
+  cases hm with hz hnz,
+  rw ← nat.add_zero 1 at hnz,
+  rw nat.add_comm at hnz,
+  have meq : m = 1, from thing hz hnz,
+  cases cin,
+
+  -- Case 1
+  use Pos 1,
+  rw cin,
+  split,
+  have : Pos 1 = Pos 1, refl,
+  exact finset.mem_singleton.2 this,
+  unfold var,
+  exact meq,
+
+  -- Case 2
+  use Neg 1,
+  rw cin,
+  split,
+  have : Neg 1 = Neg 1, refl,
+  exact finset.mem_singleton.2 this,
+  unfold var,
+  exact meq,
+
+  -- Induction step
+  have d_gt_zero : d > 0, from pos_iff_ne_zero.mpr h_1,
+  rw nat.succ_eq_add_one at cin,
+  rw thing2 d_gt_zero at cin,
+  rw nat.add_assoc at cin,
+  unfold expl_nat at cin,
+  have : (d - 1).succ = d,
+    rw nat.succ_eq_add_one,
+    rw ← thing2 d_gt_zero,
+
+  rw this at cin,
+  cases classical.em (m = d.succ),
+  rw finset.mem_union at cin,
+  cases cin,
+  use Pos (d + 1),
+  split,
+  have insert_taut : ∀ (c : clause), (Pos (d + 1)) ∈ insert (Pos (d + 1)) c, from finset.mem_insert_self (Pos (d + 1)),
+  exact mem_of_total_image insert_taut cin, -- Not quite right here...
+end
 
 lemma card_of_expl (l : list nat) : l.length > 0 → finset.card (expl l) = 2 ^ l.length :=
 begin
