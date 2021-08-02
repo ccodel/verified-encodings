@@ -1,0 +1,5 @@
+# General files to ignore
+*.DS_Store
+
+# Lean specific files
+_target/*
