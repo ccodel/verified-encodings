@@ -13,6 +13,7 @@ import data.multiset.finset_ops
 import data.finset.basic
 import data.finset.powerset
 import init.data.nat
+import init.data.nat.lemmas
 import logic.basic
 import basic
 
@@ -405,6 +406,27 @@ begin
   simp,
 end
 
+lemma gt_one_is_plus_two {n : nat} (h : 1 < n) : n = (n - 2) + 2 :=
+begin
+  induction n with d hd,
+  exfalso,
+  finish,
+
+  cases classical.em (d = 0),
+  rw h_1 at h,
+  exfalso,
+  exact nat.lt_asymm h h,
+
+  cases classical.em (d = 1),
+  rw h_2,
+
+  have g_ge_one : d ≥ 1, from nat.lt_succ_iff.mp h,
+  have g_gt_one : d > 1, from (ne.symm h_2).le_iff_lt.mp g_ge_one,
+  have : d = d - 2 + 2, from hd g_gt_one,
+  have : nat.succ (d) = nat.succ (d - 2 + 2), from congr_arg nat.succ this,
+  simp [this],
+end
+
 -- Note: Mathematically, "total" is an overloaded term, and almost certainly not the correct term here
 -- What I mean is that if the element is in any set under f, then it's in the image, no matter the makeup of the parent set set
 lemma mem_of_total_image {α β : Type} [decidable_eq β] {f : finset α → finset β} {b : β}
@@ -418,6 +440,92 @@ begin
   rw ← se_in_image_h_right,
   exact s_b_in_fs se_in_image_w,
 end
+
+-- The eventual goal is to state only those numbers between 1 and n are involved in an exploded clause
+-- Technically, a ↔ relationship with the hm hypothesis holds, but I don't know how to properly express it
+lemma not_expl_mem_of_not_mem {n m : nat} {c : clause} {l : literal} (h : n > 0) (hm : m > n) : c ∈ expl_nat n → l ∈ c → m ≠ literal.var l :=
+begin
+  intros cin lin,
+  induction n with d hd,
+  exfalso,
+  assumption,
+
+  -- Induction step
+  -- When n = 1 (d = 0), expl_nat is hard-coded, so we take care of that case first
+  cases classical.em (d = 0),
+  rw h_1 at cin hm,
+  unfold expl_nat at cin,
+  rw finset.mem_insert at cin,
+  rw finset.mem_singleton at cin,
+  cases cin;
+  rw cin at lin;
+  rw finset.mem_singleton.mp lin;
+  unfold var;
+  exact ne_of_gt hm,
+
+/-
+  rw cin at lin,
+  rw finset.mem_singleton.mp lin,
+  unfold var,
+  exact ne_of_gt hm,
+  -/
+
+  -- d > 0 case
+  have : d > 0, from pos_iff_ne_zero.mpr h_1,
+  have m_gt : m > d, from nat.lt_of_succ_lt hm,
+
+  -- Although induction is promising, it isn't actually the best method (get stuck in IH, see above)
+  -- Just have direct proof!
+  /-
+  cases classical.em (n = 1),
+  rw h_1 at cin,
+  rw h_1 at hm,
+  unfold expl_nat at cin,
+  rw finset.mem_insert at cin,
+  cases cin,
+  rw cin at lin,
+  rw finset.mem_singleton at lin,
+  rw lin,
+  unfold var,
+  exact ne_of_gt hm,
+
+  rw finset.mem_singleton at cin,
+  rw cin at lin,
+  rw finset.mem_singleton at lin,
+  rw lin,
+  unfold var,
+  exact ne_of_gt hm,
+  have n_ge_one : n ≥ 1, from nat.succ_le_of_lt h,
+  have n_gt_one : n > 1, from (ne.symm h_1).le_iff_lt.mp n_ge_one,
+  have n_min_two : n = (n - 2) + 2, from gt_one_is_plus_two n_gt_one, -- nat.sub_add_cancel with 2 ≤ n
+  rw n_min_two at cin,
+  unfold expl_nat at cin,
+
+  have cor : c ∈ finset.image (insert (Pos ((n - 2).succ + 1))) (expl_nat (n - 2).succ) ∨
+         c ∈ finset.image (insert (Neg ((n - 2).succ + 1))) (expl_nat (n - 2).succ),
+        from finset.mem_union.mp cin,
+
+  cases cor,
+  rw nat.succ_eq_add_one at cin,
+  have : 1 + 1 = 2, simp,
+  rw nat.add_assoc at cin,
+  rw this at cin,
+  rw ← gt_one_is_plus_two n_gt_one at cin,
+  have : n ≥ 2, from nat.succ_le_iff.mpr n_gt_one,
+  
+  have pred_gt_zero : 0 < n.pred, from nat.lt_pred_iff.mpr n_gt_one,
+  /-have sub_two_plus_one : n - 2 + 1 = n - 1, calc
+    n - 2 + 1 = n - 2 + 1 : rfl
+          ... = nat.pred (n - 1) + 1 : rfl
+          ... = nat.pred (nat.pred (n)) + 1 : rfl
+          ... = nat.succ (nat.pred (nat.pred (n))) : rfl
+          ... = nat.pred (n) : nat.succ_pred_eq_of_pos pred_gt_zero
+          ... = n - 1 : nat.pred_eq_sub_one,-/
+  have sub_two_plus_one : n - 2 + 1 = n - 1, from nat.sub_add_cancel np_ge_zero,
+  -/
+end
+
+-- Reason about finset, define ops in terms of lists?
 
 lemma expl_mem_of_mem {n m : nat} (h : n > 0) (hm : 0 < m ∧ m ≤ n) : ∀ c ∈ (expl_nat n), ∃ l ∈ c, m = literal.var l :=
 begin
@@ -472,10 +580,43 @@ begin
   cases classical.em (m = d.succ),
   rw finset.mem_union at cin,
   cases cin,
+
+  -- Pos case
   use Pos (d + 1),
   split,
   have insert_taut : ∀ (c : clause), (Pos (d + 1)) ∈ insert (Pos (d + 1)) c, from finset.mem_insert_self (Pos (d + 1)),
-  exact mem_of_total_image insert_taut cin, -- Not quite right here...
+  have thing3 := mem_of_total_image insert_taut cin, -- Not quite right here...
+  exact thing3,
+  exact c, -- Why need an instance of finset literal := clause?
+
+  unfold var,
+  exact h_2,
+
+  -- Neg case
+  use Neg (d + 1),
+  split,
+  have insert_taut : ∀ (c : clause), (Neg (d + 1)) ∈ insert (Neg (d + 1)) c, from finset.mem_insert_self (Neg (d + 1)),
+  have thing3 := mem_of_total_image insert_taut cin, -- Not quite right here...
+  exact thing3,
+  exact c, -- Why need an instance of finset literal := clause?
+
+  unfold var,
+  exact h_2,
+
+  -- Now that m is not d + 1, can use IH
+  cases hm with hml hmr,
+  have hmr2 : m < d + 1, from (ne.le_iff_lt h_2).mp hmr,
+  have hmr3 : m ≤ d, from nat.le_of_lt_succ hmr2,
+
+  rw finset.mem_union at cin,
+  have hd2 : c ∈ expl_nat d → (∃ (l : literal) (H : l ∈ c), m = l.var),
+    from hd d_gt_zero (and.intro hml hmr3),
+  cases cin,
+
+  have exi_b := finset.mem_image.mp cin,
+  cases exi_b,
+  cases exi_b_h,
+
 end
 
 lemma card_of_expl (l : list nat) : l.length > 0 → finset.card (expl l) = 2 ^ l.length :=
