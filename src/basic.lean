@@ -11,6 +11,8 @@ import data.bool
 
 -- Define shorthand for XOR
 notation a ⊕ b := bxor a b
+--notation a ∨ b := bor a b
+--notation a ∧ b := band a b
 
 -- Some trivial, useful theorems
 @[simp] theorem bxor_tt_left  : ∀ a, bxor tt a = bnot a := dec_trivial

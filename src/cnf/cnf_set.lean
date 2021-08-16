@@ -91,10 +91,7 @@ instance has_decidable_eq : decidable_eq literal
     end
 
 -- TODO what is the canonical way to prove this, other than simp?
-@[simp] lemma diff_parity_neq (n : nat) : Pos n ≠ Neg n :=
-begin
-  simp,
-end
+@[simp] lemma diff_parity_neq (n : nat) : Pos n ≠ Neg n := dec_trivial
 
 /- Negated literals receive the opposite boolean value as the variable -/
 def eval (α : assignment) : literal → bool
@@ -457,22 +454,47 @@ begin
   unfold expl_nat at cin,
   rw finset.mem_insert at cin,
   rw finset.mem_singleton at cin,
-  cases cin;
+  cases cin; -- Each case is the same, so we use semicolons
   rw cin at lin;
   rw finset.mem_singleton.mp lin;
   unfold var;
   exact ne_of_gt hm,
 
-/-
-  rw cin at lin,
-  rw finset.mem_singleton.mp lin,
+  -- (d ≠ 0 → d > 0) case
+
+  have d_gt_zero : d > 0, from pos_iff_ne_zero.mpr h_1,
+  have d_ge_one : d ≥ 1, from nat.succ_le_iff.mpr d_gt_zero,
+  have m_gt : m > d, from nat.lt_of_succ_lt hm,
+  have small_hd : c ∈ expl_nat d → m ≠ l.var, from hd d_gt_zero m_gt,
+
+
+  -- Now we have to show that expl_nat d.succ is at least two
+  have dsucc_gt_one : d.succ > 1, from nat.succ_lt_succ d_gt_zero,
+  have dsucc_sub_two : d.succ = (d.succ - 2) + 2, from gt_one_is_plus_two dsucc_gt_one,
+  rw dsucc_sub_two at cin,
+  unfold expl_nat at cin,
+  rw ← dsucc_sub_two at cin,
+  rw finset.mem_union at cin,
+  cases cin,
+  rw finset.mem_image at cin,
+  cases cin,
+  cases cin_h,
+  rw cin_h_h.symm at lin,
+  rw finset.mem_insert at lin,
+  cases lin,
+  rw lin,
   unfold var,
   exact ne_of_gt hm,
-  -/
+  have : d = (d.succ - 2).succ, calc
+      d = d : rfl
+    ... = (d - 1).succ : (nat.sub_add_cancel d_ge_one).symm
+    ... = ((d.succ - 1) - 1).succ : by { rw nat.add_sub_cancel d 1 }
+    ... = (d.succ - 2).succ : rfl,
+  rw ← this at cin_h_w,
+  apply small_hd,
+  
+  --rw nat.sub_add_cancel at hcl,
 
-  -- d > 0 case
-  have : d > 0, from pos_iff_ne_zero.mpr h_1,
-  have m_gt : m > d, from nat.lt_of_succ_lt hm,
 
   -- Although induction is promising, it isn't actually the best method (get stuck in IH, see above)
   -- Just have direct proof!
