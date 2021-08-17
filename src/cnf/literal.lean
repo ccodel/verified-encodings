@@ -85,6 +85,10 @@ def is_neg : literal → bool
   | (Pos _) := ff
   | (Neg _) := tt
 
+theorem pos_or_neg_of_var_eq_nat : ∀ {l : literal} {n : nat}, l.var = n → l = Pos n ∨ l = Neg n
+| (Pos x) n := by { simp [var], exact id }
+| (Neg x) n := by { simp [var], exact id }
+
 -- This seems like a lot of casing... can this be generalized?
 
 @[simp] lemma ne_pos_neg_of_nat {n : nat} : Pos n ≠ Neg n := dec_trivial

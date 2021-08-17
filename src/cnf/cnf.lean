@@ -7,6 +7,7 @@ Carnegie Mellon University
 -/
 
 -- TODO: by_cases can often replace classical.em (a = b), etc.
+-- TODO: Use variables to clean up theorem definitions, etc.
 
 import basic
 import cnf.literal
@@ -62,7 +63,13 @@ by simp [sim_erase, h]
 theorem sim_erase_cons_tail {c₁ c₂ : clause} {f : cnf} (h : ¬(c₁ ~ c₂)) : sim_erase (c₁ :: f) c₂ = c₁ :: (sim_erase f c₂) :=
 by simp [sim_erase, h]
 
-theorem sim_erase_of_not_sim {c : clause} {f : cnf} (h : ∀ cl ∈ f, ¬(cl ~ c)) : sim_erase f c = f := by sorry
+theorem sim_erase_of_not_sim {c : clause} {f : cnf} (h : ∀ cl ∈ f, ¬(cl ~ c)) : sim_erase f c = f :=
+begin
+  induction f with cl cls ih,
+  { simp [sim_erase_nil] },
+  { simp [h cl (mem_cons_self cl cls), sim_erase], simp at h, simp [ih h.2] } -- TODO tighten up?
+end
+
 /-
 by { induction f with cl cls ih, { exact sim_erase_nil },
   unfold sim_erase, have : ¬ cl ~ c, from h cl (mem_cons_self cl cls), simp [this], }
@@ -81,6 +88,36 @@ def eval (α : assignment) (f : cnf) : bool :=
 theorem eval_cons {α : assignment} {c : clause} {f : cnf} : eval α (c :: f) = (clause.eval α c && eval α f) :=
   by simp [eval, bool.band_comm]
 
+/-
+theorem eval_double {α : assignment} {c : clause} {f : cnf} (hin : c ∈ f) : c ∈ (f.erase c) → eval α f = eval α (f.erase c) :=
+begin
+  induction f with cl cls ih,
+  { exact absurd hin (not_mem_nil _) },
+  intro he,
+
+end
+-/
+
+/-
+theorem eval_erase_equiv_eval_sim_erase {α : assignment} {c : clause} {f : cnf} (hin : c ∈ f) : ∀ (cl : clause), cl ~ c → eval α (f.erase c) = eval α (f.sim_erase c) :=
+begin
+  induction f with cl cls ih,
+  { exact absurd hin (not_mem_nil _) },
+  intros clsim hclsim,
+  by_cases (cl = c),
+  { simp [erase_cons_head, sim_erase, h, perm.refl] },
+  { by_cases (cl ~ c),
+    { }
+    --have ihred := ih (mem_of_ne_of_mem h hin) clsim hclsim,
+    --rw erase_cons_tail cls (ne.symm h),
+    --by_cases (c ~ cl),
+    --{ simp [ihred, eval_cons, sim_erase, h.symm], }
+    --simp [ihred, eval_cons, sim_erase],
+   }
+end
+-/
+
+/-
 theorem eval_erase_of_mem {α : assignment} {c : clause} {f : cnf} (h : c ∈ f) : eval α f = (clause.eval α c) && (eval α (f.erase c)) :=
 begin
   /-
@@ -94,8 +131,9 @@ begin
   induction f with cl cls ih,
   { exact absurd h (not_mem_nil _) },
   cases classical.em (c ~ cl),
-  sorry, sorry,
+  
 end 
+-/
 
 /-! ### Counting -/
 
@@ -447,9 +485,8 @@ begin
   { simp [map, var, perm.cons m, ih c hc] }
 end
 
---theorem explode_clause_cons_perm_of_list_cons {n : nat} {ns : list nat} :
-
-theorem backward {ns : list nat} : ∀ (c : clause), c.map var ~ ns → ∃ cl ∈ explode ns, c ~ cl :=
+-- TODO cleanup with simp, etc.
+theorem explode_exhaustive {ns : list nat} : ∀ (c : clause), c.map var ~ ns → ∃ cl ∈ explode ns, c ~ cl :=
 begin
   induction ns with m ms ih,
   { simp [explode, perm_nil] },
@@ -460,7 +497,19 @@ begin
   have : ∃ l, l ∈ c ∧ var l = m, from mem_map.mp hm,
   cases this with l hl,
   cases hl with hl1 hl2,
-  sorry, 
-end 
+  have testthm := erase_map_var_eq_map_var_erase m hm,
+  rcases testthm with ⟨l2, ⟨hl1, ⟨hl2, hl3⟩⟩⟩,
+  have : map var (c.erase l2) ~ ms, from (perm.symm hl3).trans this,
+  rcases ih (c.erase l2) this with ⟨cl, ⟨hclms, hclsim⟩⟩,
+  use l2 :: cl,
+  split,
+  { unfold explode, simp only [mem_cons_iff, mem_append, map_cons, mem_map], 
+    rcases pos_or_neg_of_var_eq_nat hl2 with rfl | rfl,
+    { left, use cl, exact and.intro hclms (and.intro (refl _) (refl _)) },
+    right, use cl, exact and.intro hclms (and.intro (refl _) (refl _)) },
+  have : c ~ l2 :: (c.erase l2), from perm_cons_erase hl1,
+  have onemore : l2 :: list.erase c l2 ~ l2 :: cl, from (perm_cons l2).mpr hclsim,
+  exact perm.trans this onemore
+end
 
 end explode
