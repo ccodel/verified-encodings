@@ -1,6 +1,6 @@
 /-
 
-  This file contains the definition of a Boolean literal.#check
+  This file contains the definition of a Boolean literal.
   
   Authors: Cayden Codel, Jeremy Avigad, Marijn Heule
   Carnegie Mellon University
@@ -85,42 +85,46 @@ def is_neg : literal → bool
   | (Pos _) := ff
   | (Neg _) := tt
 
+theorem exists_nat_of_lit : ∀ (l : literal), ∃ (n : nat), l = Pos n ∨ l = Neg n
+| (Pos n) := by { existsi n, left, refl }
+| (Neg n) := by { existsi n, right, refl }
+
 theorem pos_or_neg_of_var_eq_nat : ∀ {l : literal} {n : nat}, l.var = n → l = Pos n ∨ l = Neg n
 | (Pos x) n := by { simp [var], exact id }
 | (Neg x) n := by { simp [var], exact id }
 
 -- This seems like a lot of casing... can this be generalized?
 
-@[simp] lemma ne_pos_neg_of_nat {n : nat} : Pos n ≠ Neg n := dec_trivial
+lemma ne_pos_neg_of_nat {n : nat} : Pos n ≠ Neg n := dec_trivial
 
-@[simp] lemma ne_nat_of_ne_pos {n m : nat} (h : Pos n ≠ Pos m) : n ≠ m :=
+lemma ne_nat_of_ne_pos {n m : nat} (h : Pos n ≠ Pos m) : n ≠ m :=
 begin
   intro heq,
   exact absurd (congr_arg Pos heq) h,
 end
 
-@[simp] lemma ne_nat_of_ne_neg {n m : nat} (h : Neg n ≠ Neg m) : n ≠ m :=
+lemma ne_nat_of_ne_neg {n m : nat} (h : Neg n ≠ Neg m) : n ≠ m :=
 begin
   intro heq,
   exact absurd (congr_arg Neg heq) h,
 end
 
-@[simp] theorem ne_lit_of_ne_nat {n m : nat} (h : n ≠ m) : Pos n ≠ Neg m := dec_trivial
+theorem ne_lit_of_ne_nat {n m : nat} (h : n ≠ m) : Pos n ≠ Neg m := dec_trivial
 
-@[simp] theorem ne_lit_of_nat {n m : nat} : Pos n ≠ Neg m :=
+theorem ne_lit_of_nat {n m : nat} : Pos n ≠ Neg m :=
 begin
   cases classical.em (n = m) with he hne,
   { rw he, exact ne_pos_neg_of_nat},
   exact ne_lit_of_ne_nat hne,
 end
 
-@[simp] theorem ne_pos_of_ne_nat {n m : nat} (h : n ≠ m) : Pos n ≠ Pos m :=
+theorem ne_pos_of_ne_nat {n m : nat} (h : n ≠ m) : Pos n ≠ Pos m :=
 begin
   intro hp,
   exact absurd (congr_arg var hp) h,
 end
 
-@[simp] theorem ne_neg_of_ne_nat {n m : nat} (h : n ≠ m) : Neg n ≠ Neg m :=
+theorem ne_neg_of_ne_nat {n m : nat} (h : n ≠ m) : Neg n ≠ Neg m :=
 begin
   intro hp,
   exact absurd (congr_arg var hp) h,
