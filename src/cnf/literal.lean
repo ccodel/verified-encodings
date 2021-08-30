@@ -57,11 +57,11 @@ def flip : literal → literal
   | (Pos n) := Neg n
   | (Neg n) := Pos n
 
-lemma eval_flip {α : assignment} : ∀ (l : literal), eval α l = bnot (eval α l.flip)
+lemma eval_flip (α : assignment) : ∀ (l : literal), eval α l = bnot (eval α l.flip)
 | (Pos n) := by simp [flip, eval]
 | (Neg n) := by simp [flip, eval]
 
-lemma eval_flip_flip {α : assignment} : ∀ (l : literal), eval α l = eval α l.flip.flip
+lemma eval_flip_flip (α : assignment) : ∀ (l : literal), eval α l = eval α l.flip.flip
 | (Pos n) := by simp [flip]
 | (Neg n) := by simp [flip]
 

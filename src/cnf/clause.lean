@@ -56,6 +56,105 @@ by simp [eval]
 theorem eval_cons (α : assignment) (l : literal) (c : clause) : eval α (l :: c) = (literal.eval α l) || (eval α c) :=
 by simp [eval, bool.bor_comm]
 
+-- Can be cleaned up
+theorem eval_tt_iff_exists_literal_tt {α : assignment} {c : clause} : eval α c = tt ↔ ∃ l ∈ c, literal.eval α l = tt :=
+begin
+  induction c with l ls ih,
+  { simp }, split,
+  { simp [eval_cons],
+    rintros (hl | hls),
+    { use l, simp [hl] },
+    { rcases ih.mp hls with ⟨l, hl, hlt⟩,
+      use l,
+      simp [hl, hlt] } },
+  { rintros ⟨l2, hl2, hlt⟩,
+    rcases eq_or_ne_mem_of_mem hl2 with rfl | ⟨hne, hls⟩,
+    { simp [eval_cons, hlt] },
+    { simp [eval_cons], 
+      have : ∃ (l3 : literal) (H : l3 ∈ ls), literal.eval α l3 = tt,  -- Shorten this?
+        { use l2, simp [hls, hlt] },
+      simp [ih.mpr this] } }
+end
+
+-- Can be cleaned up
+theorem eval_ff_iff_literals_ff {α : assignment} {c : clause} : eval α c = ff ↔ ∀ l ∈ c, literal.eval α l = ff :=
+begin
+  induction c with l ls ih,
+  { simp }, split,
+  { simp [eval_cons],
+    intros hl hls,
+    exact and.intro hl (ih.mp hls) },
+  { intro hl,
+    simp [eval_cons],
+    simp [hl l (mem_cons_self l ls)],
+    have : ∀ (l2 : literal), l2 ∈ ls → literal.eval α l2 = ff,
+      { intros l2 hl2,
+        have : l2 ∈ l :: ls, from mem_cons_of_mem l hl2,
+        exact hl l2 this },
+    exact ih.mpr this }
+end
+
+-- For any list of natural numbers and assignment, a false clause can be computed
+def falsify : assignment → list nat → clause
+| α []        := []
+| α (n :: ns) := if α n then Neg n :: falsify α ns else Pos n :: falsify α ns
+
+-- And here's a companion function that might have fewer uses
+-- NOTE: The empty case doesn't work, but the empty case is trivial anyways...
+def truthify : assignment → list nat → clause
+| α []        := []
+| α (n :: ns) := if α n then Pos n :: truthify α ns else Neg n :: truthify α ns
+
+@[simp] lemma falsify_nil (α : assignment) : falsify α [] = [] := rfl
+@[simp] lemma truthify_nil (α : assignment) : truthify α [] = [] := rfl
+
+theorem eval_ff_of_falsify (α : assignment) (ns : list nat) : eval α (falsify α ns) = ff :=
+begin
+  induction ns with m ms ih,
+  { simp [falsify] },
+  { unfold falsify,
+    by_cases α m = tt,
+    { simp [h, eval_cons, literal.eval, ih] },
+    { simp at h,
+      simp [h, eval_cons, literal.eval, ih] } }
+end
+
+theorem eval_tt_of_truthify (α : assignment) {ns : list nat} (hns : ns ≠ []) : eval α (truthify α ns) = tt :=
+begin
+  induction ns with m ms ih,
+  { contradiction },
+  { by_cases α m = tt,
+    { simp [truthify, h, literal.eval, eval_cons] },
+    { simp at h, simp [truthify, h, literal.eval, eval_cons] } }
+end
+
+theorem map_var_falsify_eq_list (α : assignment) (ns : list nat) : map var (falsify α ns) = ns :=
+begin
+  induction ns with m ms ih,
+  { simp },
+  { rcases bool_by_cases (α m) with h | h;
+    { simp [falsify, h, ih, var] } }
+end
+
+theorem map_var_truthify_eq_list (α : assignment) (ns : list nat) : map var (truthify α ns) = ns :=
+begin
+  induction ns with m ms ih,
+  { simp },
+  { rcases bool_by_cases (α m) with h | h;
+    { simp [truthify, h, ih, var] } }
+end
+
+theorem flip_truthify_eq_falsify (α : assignment) (ns : list nat) :
+  map flip (truthify α ns) = falsify α ns :=
+begin
+  induction ns with m ms ih,
+  { simp [truthify, falsify] },
+  { simp [truthify, falsify],
+    by_cases α m = tt,
+    { simp [h, literal.eval, ih, literal.flip] },
+    { simp at h, simp [h, literal.eval, ih, literal.flip] } }
+end
+
 theorem eval_erase_of_mem (α : assignment) {l : literal} {c : clause} (h : l ∈ c) : eval α c = (literal.eval α l) || (eval α (c.erase l)) :=
 begin
   induction c with d ds ih,
@@ -210,6 +309,9 @@ begin
       rcases ih h with ⟨n2, h2⟩, use n2, simp [h2] } }
 end
 
+lemma count_tt_le_length (α : assignment) (c : clause) : count_tt α c ≤ length c :=
+by simp [count_tt, countp_eq_length_filter, length_filter]
+
 -- Handling the erase case
 lemma count_pos_erase_of_mem {c : clause} {l : literal} (h : l ∈ c) : count_pos c = count_pos (c.erase l) + count_pos [l] :=
 begin
@@ -233,6 +335,70 @@ begin
     have : count_neg [l] ≤ count_neg ds, from count_neg_subset (singleton_sublist.mpr h2),
     simp [count_neg_singleton] at this,
     simp [count_neg_cons, ih h2, add_assoc] }
+end
+
+/-! ## Parity reasoning for evaluation -/
+
+-- This can probably be vastly shortened with a restatement or the introduction with a few supporting lemmas
+theorem eval_tt_of_neq_counts {α : assignment} {ns : list nat} (hnil : ns ≠ nil) (hns : ns.nodup) :
+  ∀ (c : clause), map var c = ns → count_tt α (map Pos ns) ≠ count_neg c → eval α c = tt :=
+begin
+  induction ns with m ms ih,
+  { contradiction },
+  by_cases ms = nil,
+  { rw h,
+    intros c hc hcount,
+    rcases exists_of_map_singleton hc with ⟨l, rfl, hl⟩,
+    rcases pos_or_neg_of_var_eq_nat hl with rfl | rfl,
+    { simp [literal.eval],
+      by_cases α m = tt,
+      { exact h },
+      { simp at h,
+        simp [count_tt_singleton, count_neg_singleton, is_neg, bool.to_nat, h, literal.eval] at hcount,
+        exfalso, exact hcount } },
+    { simp [literal.eval],
+      by_cases α m = tt,
+      { simp [count_tt_singleton, count_neg_singleton, is_neg, bool.to_nat, h, literal.eval] at hcount, 
+        exfalso, exact hcount },
+      { simp at h, exact h } } },
+  { intros c hc hcount,
+    rcases exists_cons_of_map_cons hc with ⟨l, ls, rfl, hl, hls⟩,
+    have ihred := ih h (nodup_of_nodup_cons hns) ls hls,
+    rw eval_cons,
+    by_cases literal.eval α l = tt,
+    { simp [h] },
+    { simp at h,
+      rcases pos_or_neg_of_var_eq_nat hl with rfl | rfl,
+      { simp [h],
+        simp [count_tt_cons, count_neg_cons, h, bool.to_nat, is_neg] at hcount,
+        exact ihred hcount },
+      { simp [count_tt_cons, count_neg_cons, h, bool.to_nat, is_neg] at hcount,
+        have : literal.eval α (Pos m) = tt, 
+        { have h3 := literal.eval_flip α (Pos m),
+          simp [literal.flip] at h3,
+          rw h at h3,
+          simp at h3,
+          exact h3 },
+        simp [this] at hcount,
+        simp [ihred hcount] } } }
+end
+
+-- Corollary of the above wrt parity reasoning
+theorem eval_tt_of_opposite_parity {α : assignment} {ns : list nat} {c : clause} (hnil : ns ≠ nil) (hns : ns.nodup) : 
+  map var c = ns → nat.bodd (count_tt α (map Pos ns)) ≠ nat.bodd (count_neg c) → eval α c = tt :=
+begin
+  intros hc hcount,
+  exact eval_tt_of_neq_counts hnil hns c hc (ne_of_apply_ne nat.bodd hcount)
+end
+
+-- Falsify negates those literals that, if positive, are true
+theorem count_tt_pos_eq_count_neg_falsify (α : assignment) (ns : list nat) : 
+  count_tt α (map Pos ns) = count_neg (falsify α ns) :=
+begin
+  induction ns with m ms ih,
+  { simp },
+  { rcases bool_by_cases (α m) with h | h;
+    { simp [count_tt_cons, h, falsify, count_neg_cons, literal.eval, is_neg, bool.to_nat, ih] } }
 end
 
 end clause

@@ -102,60 +102,14 @@ begin
     { use c, simp [hc] },
     { rcases ih.mp hcs with ⟨c, hc1, hc2⟩,
       use c, simp [hc1, hc2] } },
-  { 
-    simp [eval_cons],
+  { simp [eval_cons],
     split,
     { intro hc, left, exact hc },
-    { intros a ha haf, sorry,}
-  }
+    { intros a ha haf, right,
+      have : ∃ (cl : clause) (H : cl ∈ cs), clause.eval α cl = ff,
+        { use a, simp [ha, haf] },
+      exact ih.mpr this } }
 end
-
-/-
-theorem eval_double {α : assignment} {c : clause} {f : cnf} (hin : c ∈ f) : c ∈ (f.erase c) → eval α f = eval α (f.erase c) :=
-begin
-  induction f with cl cls ih,
-  { exact absurd hin (not_mem_nil _) },
-  intro he,
-
-end
--/
-
-/-
-theorem eval_erase_equiv_eval_sim_erase {α : assignment} {c : clause} {f : cnf} (hin : c ∈ f) : ∀ (cl : clause), cl ~ c → eval α (f.erase c) = eval α (f.sim_erase c) :=
-begin
-  induction f with cl cls ih,
-  { exact absurd hin (not_mem_nil _) },
-  intros clsim hclsim,
-  by_cases (cl = c),
-  { simp [erase_cons_head, sim_erase, h, perm.refl] },
-  { by_cases (cl ~ c),
-    { }
-    --have ihred := ih (mem_of_ne_of_mem h hin) clsim hclsim,
-    --rw erase_cons_tail cls (ne.symm h),
-    --by_cases (c ~ cl),
-    --{ simp [ihred, eval_cons, sim_erase, h.symm], }
-    --simp [ihred, eval_cons, sim_erase],
-   }
-end
--/
-
-/-
-theorem eval_erase_of_mem {α : assignment} {c : clause} {f : cnf} (h : c ∈ f) : eval α f = (clause.eval α c) && (eval α (f.erase c)) :=
-begin
-  /-
-    induction c with d ds ih,
-  { exact absurd h (not_mem_nil _) },
-  rcases classical.em (l = d) with rfl | hne,
-  { simp [erase_cons_head, eval_cons] },
-  { simp only [eval_cons, erase_cons_tail ds (ne.symm hne), ih (mem_of_ne_of_mem hne h), ← bool.bor_assoc, bool.bor_comm] }
-  -/
-
-  induction f with cl cls ih,
-  { exact absurd h (not_mem_nil _) },
-  cases classical.em (c ~ cl),
-  
-end 
--/
 
 /-! ### Counting -/
 
