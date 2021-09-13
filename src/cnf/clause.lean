@@ -8,7 +8,9 @@ Carnegie Mellon Univeristy
 
 import cnf.literal
 import basic
+import data.nat.basic
 import data.list.basic
+import data.list.nodup
 import data.list.perm
 
 /- (Disjunctive) clauses are lists of literals, joined by logical ORs. -/
@@ -292,6 +294,24 @@ lemma count_ff_singleton (α : assignment) (l : literal) : count_ff α [l] = boo
 lemma count_pos_singleton (l : literal) : count_pos [l] = bool.to_nat l.is_pos := by simp [count_pos_cons l []]
 lemma count_neg_singleton (l : literal) : count_neg [l] = bool.to_nat l.is_neg := by simp [count_neg_cons l []]
 
+lemma count_tt_falsify (α : assignment) (c : clause) : count_tt α (falsify α (map var c)) = 0 :=
+begin
+  induction c with l ls ih,
+  { simp },
+  { rcases exists_nat_of_lit l with ⟨n, (rfl | rfl)⟩;
+    { rcases bool_by_cases (α n) with h | h;
+      { simp [falsify, h, var, count_tt_cons, bool.to_nat, literal.eval, ih] } } }
+end
+
+lemma count_tt_truthify (α : assignment) (c : clause) : count_tt α (truthify α (map var c)) = length c :=
+begin
+  induction c with l ls ih,
+  { simp },
+  { rcases exists_nat_of_lit l with ⟨n, (rfl | rfl)⟩;
+  { rcases bool_by_cases (α n) with h | h;
+    { simp [truthify, h, var, count_tt_cons, bool.to_nat, literal.eval, ih, add_comm] } } }
+end
+
 lemma count_pos_subset {c₁ c₂ : clause} : c₁ <+ c₂ → count_pos c₁ ≤ count_pos c₂ := 
   assume h, by simp [count_pos, countp_le_of_sublist (λ l, literal.is_pos l = tt) h]
 
@@ -335,6 +355,112 @@ begin
     have : count_neg [l] ≤ count_neg ds, from count_neg_subset (singleton_sublist.mpr h2),
     simp [count_neg_singleton] at this,
     simp [count_neg_cons, ih h2, add_assoc] }
+end
+
+theorem exists_literal_eval_tt_of_pos_count_tt {α : assignment} {c : clause} : 
+  0 < count_tt α c → ∃ (l : literal), l ∈ c ∧ l.eval α = tt :=
+begin
+  induction c with l ls ih,
+  { simp [count_tt] },
+  { rcases bool_by_cases (l.eval α),
+    { intro _, use l, simp [h, mem_cons_self l ls] },
+    { simp [count_tt_cons, h, bool.to_nat],
+      intro hls,
+      rcases ih hls with ⟨m, hm⟩,
+      use m,
+      simp [hm] } }
+end
+
+-- Corollary of the above by definition of clause evaluation
+theorem eval_tt_of_pos_count_tt {α : assignment} {c : clause} :
+  0 < count_tt α c → eval α c = tt :=
+begin
+  intro h,
+  apply eval_tt_iff_exists_literal_tt.mpr,
+  simp [exists_literal_eval_tt_of_pos_count_tt h]
+end
+
+theorem forall_literal_eval_ff_of_count_tt_eq_zero {α : assignment} {c : clause} :
+  count_tt α c = 0 → ∀ {l : literal}, l ∈ c → l.eval α = ff :=
+begin
+  induction c with l ls ih,
+  { simp },
+  { intros h m hm,
+    simp [count_tt_cons, bool.to_nat] at h,
+    rcases h with ⟨hcond, hls⟩,
+    rcases eq_or_ne_mem_of_mem hm with (hlm | ⟨_, hin⟩),
+    { simp [hlm, cond_ff_of_cond_eq_second_of_ne (ne.symm zero_ne_one) hcond] },
+    { exact ih hls hin } }
+end
+
+theorem eval_ff_of_count_tt_eq_zero {α : assignment} {c : clause} :
+  count_tt α c = 0 → eval α c = ff :=
+begin
+  intro h,
+  apply eval_ff_iff_literals_ff.mpr,
+  intros _ hl,
+  exact forall_literal_eval_ff_of_count_tt_eq_zero h hl
+end
+
+-- Flip counting
+def count_flips : clause → clause → nat
+| []         _        := 0
+| _         []        := 0
+| (l :: ls) (m :: ms) := ite (l.flip = m) (1 + count_flips ls ms) (count_flips ls ms)
+
+@[simp] lemma count_flips_nil (c₁ c₂ : clause) : c₁ = [] ∨ c₂ = [] → count_flips c₁ c₂ = 0 :=
+begin
+  intro h, rcases h with rfl | rfl, 
+  { rcases list_by_cases c₂ with rfl | ⟨b, L, rfl⟩;
+    { simp [count_flips] } },
+  { rcases list_by_cases c₁ with rfl | ⟨b, L, rfl⟩;
+    { simp [count_flips] } }
+end
+
+lemma count_flips_self (c : clause) : count_flips c c = 0 :=
+begin
+  induction c with l ls ih,
+  { simp },
+  { simp [count_flips, ne_flip_self, ih] }
+end
+
+lemma count_flips_comm (c₁ : clause) : ∀ (c₂ : clause), count_flips c₁ c₂ = count_flips c₂ c₁ :=
+begin
+  induction c₁ with l ls ih,
+  { simp },
+  { intro c₂,
+    rcases list_by_cases c₂ with rfl | ⟨m, ms, rfl⟩,
+    { simp [count_flips] },
+    { simp [count_flips],
+      by_cases l.flip = m,
+      { simp [h, eq_flip_of_flip_eq h, eq_flip_flip, ih] },
+      { simp [h, ne.symm (ne_flip_of_flip_ne h), eq_flip_flip, ih] } } }
+end
+
+theorem count_flips_pos_of_neq_of_map_var_eq {c₁ : clause} :
+  ∀ {c₂ : clause}, map var c₁ = map var c₂ → c₁ ≠ c₂ → count_flips c₁ c₂ > 0 :=
+begin
+  induction c₁ with l ls ih,
+  { intros c₂ h,
+    simp at h,
+    rw eq_nil_of_map_eq_nil h.symm,
+    contradiction },
+  { intros c₂ h hneq,
+    rcases exists_cons_of_map_cons h.symm with ⟨x, xs, rfl, hxl, hxs⟩,
+    by_cases heq : l = x,
+    { simp [count_flips, ih hxs.symm (ne_tail_of_eq_head_of_ne hneq heq), heq, ne_flip_self] },
+    { simp [count_flips, eq_flip_of_eq_var_of_ne heq hxl.symm, nat.zero_lt_one_add] } }
+end
+
+theorem count_flips_falsify_eq_count_tt (α : assignment) (c : clause) :
+  count_flips c (falsify α (map var c)) = count_tt α c :=
+begin
+  induction c with l ls ih,
+  { simp },
+  { rcases exists_nat_of_lit l with ⟨n, (rfl | rfl)⟩;
+    { rcases bool_by_cases (α n) with h | h;
+      { simp [falsify, count_flips, h, var, literal.flip, 
+              count_tt_cons, ih, bool.to_nat, literal.eval] } } }
 end
 
 /-! ## Parity reasoning for evaluation -/
@@ -399,6 +525,51 @@ begin
   { simp },
   { rcases bool_by_cases (α m) with h | h;
     { simp [count_tt_cons, h, falsify, count_neg_cons, literal.eval, is_neg, bool.to_nat, ih] } }
+end
+
+-- Parity reasoning based on flips rather than negs
+-- If a clause evaluates to false, then any clause that can be made by flipping a
+-- variable in that clause will evaluate to true
+-- TODO clean up, especially instances of "this"
+theorem eval_tt_of_neq_flips {α : assignment} {c₁ : clause} (hc₁ : c₁ ≠ []) (hnodup : (map var c₁).nodup) :
+  ∀ (c₂ : clause), map var c₁ = map var c₂ → count_tt α c₁ ≠ count_flips c₁ c₂ → eval α c₂ = tt :=
+begin
+  induction c₁ with l ls ih,
+  { contradiction },
+  { intros c₂ hmap hne,
+    rcases list_by_cases ls with rfl | ⟨m, ms, rfl⟩,
+    { simp at hmap,
+      rcases exists_of_map_singleton hmap.symm with ⟨m, rfl, hm⟩,
+      by_cases hmeq : m = l,
+      { simp [count_flips, hmeq, ne_flip_self] at hne,
+        simp [eval_tt_of_pos_count_tt (pos_iff_ne_zero.mpr hne), hmeq] },
+      { simp [count_flips, hmeq, eq_flip_of_eq_var_of_ne (ne.symm hmeq) hm.symm] at hne,
+        have := count_tt_le_length α [l],
+        simp at this,
+        have : count_tt α [l] = 0, from nat.lt_one_iff.mp ((ne.le_iff_lt hne).mp this),
+        have eval_ff := forall_literal_eval_ff_of_count_tt_eq_zero this (mem_singleton_self l),
+        rw (eq_flip_of_eq_var_of_ne (ne.symm hmeq) hm.symm).symm,
+        have := eval_flip α l,
+        rw eval_ff at this,
+        simp [bool.eq_tt_of_bnot_eq_ff this.symm] } },
+    { rw map_cons at hnodup,
+      rcases exists_map_cons_of_map_cons hmap.symm with ⟨n, ns, rfl, hn, hns⟩,
+      have ihred := ih (cons_ne_nil m ms) (nodup_cons.mp hnodup).2 ns hns.symm,
+      rcases bool_by_cases (literal.eval α n) with htt | hff,
+      { apply eval_tt_iff_exists_literal_tt.mpr,
+        use n, simp [mem_cons_self n ns, htt] },
+      { rw count_tt_cons at hne,
+        unfold count_flips at hne,
+        simp [ne_flip_self l, bool.to_nat] at hne,
+        by_cases l = n,
+        { simp [h, ne_flip_self n, hff] at hne,
+          simp [eval_cons, ihred hne, hff] },
+        { have lflip : l.flip = n, from eq_flip_of_eq_var_of_ne h hn.symm,
+          have eflip := eval_flip α l,
+          rw ← lflip at hff,
+          rw hff at eflip,
+          simp [eq_flip_of_eq_var_of_ne h hn.symm, eflip] at hne,
+          simp [eval_cons, ihred hne] } } } }
 end
 
 end clause

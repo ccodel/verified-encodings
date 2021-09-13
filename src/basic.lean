@@ -47,6 +47,43 @@ theorem bool_by_cases : ∀ (b : bool), b = tt ∨ b = ff
 | tt := by { left, refl }
 | ff := by { right, refl }
 
+/- This is a shorthand for absurd that derives from a boolean that is true and false -/
+theorem absurd_bool {a : bool} {b : Prop} : a = tt → a = ff → b :=
+assume h₁ h₂, absurd h₁ (neq_of_ff_of_tt rfl h₂).symm
+
+/- Reasoning about cond is helpful if the result of the cond is known -/
+theorem cond_tt_of_cond_eq_first_of_ne {α : Type} [decidable_eq α] {a₁ a₂ : α} {b : bool} : 
+  a₁ ≠ a₂ → cond b a₁ a₂ = a₁ → b = tt :=
+begin
+  intros hne hcond,
+  rcases bool_by_cases b,
+  { exact h },
+  { simp [h] at hcond, exact absurd hcond (ne.symm hne) }
+end
+
+theorem cond_ff_of_cond_eq_second_of_ne {α : Type} [decidable_eq α] {a₁ a₂ : α} {b : bool} :
+  a₁ ≠ a₂ → cond b a₁ a₂ = a₂ → b = ff :=
+begin
+  intros hne hcond,
+  rcases bool_by_cases b,
+  { simp [h] at hcond, exact absurd hcond hne },
+  { exact h }
+end
+
+theorem list_by_cases {α : Type} : ∀ (l : list α), l = [] ∨ ∃ b L, l = b :: L
+| []        := by { left, refl }
+| (x :: xs) := by { right, use [x, xs] }
+
+theorem ne_tail_of_eq_head_of_ne {α : Type} [decidable_eq α] {a b : α} : ∀ {l₁ : list α},
+  ∀ {l₂ : list α}, (a :: l₁) ≠ (b :: l₂) → a = b → l₁ ≠ l₂
+| []        := by simp
+| (x :: xs) := begin
+  intros l₂ hneq heq,
+  by_contradiction,
+  simp at h,
+  exact absurd (congr (congr_arg cons heq) h) hneq
+end
+
 -- Some facts about map that help
 theorem exists_of_map_singleton {α β : Type} {f : α → β} {b : β} :
   ∀ {l : list α}, map f l = [b] → ∃ a, [a] = l ∧ f a = b
@@ -61,6 +98,16 @@ theorem exists_cons_of_map_cons {α β : Type} {f : α → β} {b : β} {bs : li
   simp [map_cons],
   intros hx hxs,
   use x, use xs, simp [hx, hxs]
+end
+
+-- If instead the list from above is a map construction too
+theorem exists_map_cons_of_map_cons {α β : Type} {f : α → β} {a : α} {as : list α} :
+  ∀ {l : list α}, map f l = map f (a :: as) → ∃ h L, l = h :: L ∧ f h = f a ∧ map f L = map f as
+| []        := by { contradiction }
+| (x :: xs) := begin
+  simp [map_cons],
+  intros hx hxs,
+  use [x, xs], simp [hx, hxs]
 end
 
 -- Or facts about filter

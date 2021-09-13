@@ -57,6 +57,43 @@ def flip : literal → literal
   | (Pos n) := Neg n
   | (Neg n) := Pos n
 
+lemma ne_flip_self : ∀ (l : literal), l.flip ≠ l
+| (Pos n) := by simp [flip]
+| (Neg n) := by simp [flip]
+
+lemma var_flip_eq_var : ∀ (l : literal), l.var = l.flip.var
+| (Pos n) := by simp [flip, var]
+| (Neg n) := by simp [flip, var]
+
+lemma eq_flip_of_eq_var_of_ne : ∀ {l₁ l₂ : literal}, l₁ ≠ l₂ → l₁.var = l₂.var → l₁.flip = l₂
+| (Pos n) (Pos m) := by { simp [var], intros hne heq, exact absurd heq hne }
+| (Pos n) (Neg m) := by { simp [var, flip], intro _, exact id }
+| (Neg n) (Pos m) := by { simp [var, flip], intro _, exact id }
+| (Neg n) (Neg m) := by { simp [var], intros hne heq, exact absurd heq hne }
+
+-- NOTE: These two are basically stating that flip is a bijective function
+lemma eq_flip_of_flip_eq : ∀ {l₁ l₂ : literal}, l₁.flip = l₂ → l₁ = l₂.flip
+| (Pos n) (Pos m) := by { contradiction }
+| (Pos n) (Neg m) := by { simp [flip], exact id }
+| (Neg n) (Pos m) := by { simp [flip], exact id }
+| (Neg n) (Neg m) := by { contradiction }
+
+lemma ne_flip_of_flip_ne : ∀ {l₁ l₂ : literal}, l₁.flip ≠ l₂ → l₁ ≠ l₂.flip
+| (Pos n) (Pos m) := by simp [flip]
+| (Pos n) (Neg m) := by { simp [flip], exact id }
+| (Neg n) (Pos m) := by { simp [flip], exact id }
+| (Neg n) (Neg m) := by simp [flip]
+
+lemma eq_of_flip_ne_of_var_eq : ∀ {l₁ l₂ : literal}, l₁.var = l₂.var → l₁.flip ≠ l₂ → l₁ = l₂
+| (Pos n) (Pos m) := by { simp [flip, var], intros h _, exact h }
+| (Pos n) (Neg m) := by { simp [flip, var], intros h hn, exact hn h }
+| (Neg n) (Pos m) := by { simp [flip, var], intros h hn, exact hn h }
+| (Neg n) (Neg m) := by { simp [flip, var], intros h _, exact h }
+
+lemma eq_flip_flip : ∀ (l : literal), l.flip.flip = l
+| (Pos n) := by simp [flip]
+| (Neg n) := by simp [flip]
+
 lemma eval_flip (α : assignment) : ∀ (l : literal), eval α l = bnot (eval α l.flip)
 | (Pos n) := by simp [flip, eval]
 | (Neg n) := by simp [flip, eval]
