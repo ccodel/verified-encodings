@@ -79,7 +79,14 @@ def eval (α : assignment) (f : cnf) : bool :=
 @[simp] theorem eval_singleton {α : assignment} {c : clause} : eval α [c] = clause.eval α c := by simp [eval]
 
 theorem eval_cons {α : assignment} {c : clause} {f : cnf} : eval α (c :: f) = (clause.eval α c && eval α f) :=
-  by simp [eval, bool.band_comm]
+by simp [eval, bool.band_comm]
+
+theorem eval_concat (α : assignment) (f₁ f₂ : cnf) : eval α (f₁ ++ f₂) = eval α f₁ && eval α f₂ :=
+begin
+  induction f₁ with c cs ih,
+  { simp },
+  { simp [eval_cons, ih] }
+end
 
 theorem eval_tt_iff_clauses_tt {α : assignment} {f : cnf} : eval α f = tt ↔ ∀ c ∈ f, clause.eval α c = tt :=
 begin

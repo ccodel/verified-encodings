@@ -96,6 +96,26 @@ begin
     exact ih.mpr this }
 end
 
+-- TODO can be shortened, instead of four casework (I think)
+theorem eval_tautology (α : assignment) {c : clause} {l : literal} : l ∈ c → l.flip ∈ c → eval α c = tt :=
+begin
+  rcases list_by_cases c with rfl | ⟨d, ds, rfl⟩,
+  { simp },
+  { intros hl hlf,
+    rcases bool_by_cases (α l.var) with h | h;
+    rcases exists_nat_of_lit l with ⟨n, (rfl | rfl)⟩;
+    simp [var, literal.flip] at h hl hlf;
+    apply eval_tt_iff_exists_literal_tt.mpr,
+    { use (Pos n),
+      simp [hl, hlf, h, literal.eval] },
+    { use (Pos n),
+      simp [hl, hlf, h, literal.eval] },
+    { use (Neg n),
+      simp [hl, hlf, h, literal.eval] },
+    { use (Neg n),
+      simp [hl, hlf, h, literal.eval] } }
+end
+
 -- For any list of natural numbers and assignment, a false clause can be computed
 def falsify : assignment → list nat → clause
 | α []        := []
@@ -571,5 +591,158 @@ begin
           simp [eq_flip_of_eq_var_of_ne h hn.symm, eflip] at hne,
           simp [eval_cons, ihred hne] } } } }
 end
+
+/-! # Grappling with the variables (natural numbers) of the literals of the clause -/
+/- If the below is fully implemented, then it should be refactored everywhere else
+    The motivation for this is twofold
+      1. Hide the implementation of clause as a list. Accessing the variables of the clause
+         via the below function makes it so that (map var c) doesn't produce the same
+      2. Allow for the same in cnf, etc.
+ -/
+
+def vars : clause → list nat
+| []        := []
+| (l :: ls) := l.var :: vars ls
+
+def reduced : clause → clause
+| []        := []
+| (l :: ls) := if l ∈ ls then reduced ls else l :: reduced ls
+
+-- TODO can probably be implemented in terms of foldl, foldr
+-- TODO Borrow the min_max list derivations for streamlining
+def max_var : clause → nat
+| []        := 0
+| (l :: ls) := max l.var (max_var ls)
+
+-- Carry over a lot of these things for min too
+@[simp] lemma max_var_nil : max_var [] = 0 := rfl
+
+@[simp] lemma max_var_singleton (l : literal) : max_var [l] = l.var :=
+by simp [max_var]
+
+lemma max_var_cons (c : clause) (l : literal) : max_var (l :: c) = max l.var (max_var c) := rfl
+
+lemma max_var_concat (c : clause) (l : literal) : max_var (c ++ [l]) = max (l.var) (max_var c) :=
+begin
+  induction c with d ds ih,
+  { simp },
+  { simp [max_var, ih],
+    rw ← max_assoc,
+    rw ← max_assoc,
+    rw max_comm d.var l.var }
+end
+
+lemma max_var_append (c₁ c₂ : clause) : max_var (c₁ ++ c₂) = max (max_var c₁) (max_var c₂) :=
+begin
+  induction c₁ with d ds ih,
+  { simp },
+  { simp [max_var, ih],
+    rw ← max_assoc }
+end
+
+lemma max_var_le_max_var_cons (c : clause) (l : literal) : max_var c ≤ max_var (l :: c) :=
+by simp [max_var_cons]
+
+lemma max_var_lit_le_max_var_cons (c : clause) (l : literal) : max_var [l] ≤ max_var (l :: c) :=
+by simp [max_var]
+
+lemma max_var_cons_eq_max_var_of_le (c : clause) (l : literal) : l.var ≤ max_var c → max_var (l :: c) = max_var c :=
+assume h, by simp [max_var, h]
+
+lemma max_var_cons_eq_max_var_of_gt (c : clause) (l : literal) : l.var > max_var c → max_var (l :: c) = l.var :=
+begin
+  simp [max_var_cons],
+  intro h,
+  exact le_of_lt h
+end
+
+-- hehe not an induction argument
+lemma sublist_lemma {α : Type} [decidable_eq α] {a : α} {l₁ l₂ : list α} : 
+  l₁ <+ (a :: l₂) → l₁ <+ l₂ ∨ (∃ b L, l₁ = b :: L ∧ a = b ∧ L <+ l₂) :=
+begin
+  induction l₁ with x xs ih,
+  { simp },
+  { intro h,
+    by_cases heq : a = x,
+    { right,
+      rw heq at h,
+      use [x, xs],
+      simp [heq, sublist_of_cons_sublist_cons h] },
+    { left,
+      cases h,
+      { assumption },
+      { contradiction } } }
+end
+
+-- This seems a sort of thing a maximum or minimum has a theorem for already
+lemma max_var_sublist (c₁ : clause) : ∀ {c₂ : clause}, c₂ <+ c₁ → max_var c₂ ≤ max_var c₁ :=
+begin
+  induction c₁ with l ls ih,
+  { simp },
+  { intros c₂ hc₂,
+    rcases sublist_lemma hc₂ with hls | ⟨c, cs, rfl, rfl, hcs⟩,
+    { exact le_trans (ih hls) (max_var_le_max_var_cons ls l) },
+    { unfold max_var,
+      have ihred := ih hcs,
+      simp [ihred],
+      by_cases max_var cs ≤ l.var,
+      { left, assumption },
+      { right,
+        simp at h,
+        exact le_trans (le_of_lt h) ihred } } }
+end
+
+-- Overly situational, I know
+lemma max_var_sublist_append (c₁ c₂ : clause) : ∀ {c₃ : clause}, 
+  c₃ <+ c₁ → max_var c₂ > max_var c₁ → max_var (c₃ ++ c₂) = max_var c₂ :=
+begin
+  induction c₁ with d ds ih,
+  { simp },
+  { intros c₃ hc3 hmax,
+    have hcds : c₂.max_var > max_var ds, from gt_of_gt_of_ge hmax (max_var_le_max_var_cons ds d),
+    rcases sublist_lemma hc3 with hds | ⟨a, as, rfl, rfl, has⟩,
+    { exact ih hds hcds },
+    { have ihred := ih has hcds,
+      have : d.var ≤ max_var c₂,
+      { by_contradiction,
+        simp at h,
+        have : c₂.max_var > max_var [d], from gt_of_gt_of_ge hmax (max_var_lit_le_max_var_cons ds d),
+        simp [max_var] at this,
+        have : d.var ≤ c₂.max_var, from le_of_lt this,
+        have : ¬(d.var > c₂.max_var), simp [this],
+        exact absurd h this },
+      rw ← ihred,
+      rw ← ihred at this,
+      exact max_var_cons_eq_max_var_of_le (as ++ c₂) d this } }
+end
+
+lemma forall_max_var {c : clause} {n : nat} : c ≠ [] → n = max_var c → ∀ l ∈ c, literal.var l ≤ n :=
+begin
+  induction c with d ds ih,
+  { contradiction },
+  { intro hnil,
+    intros hn l hl,
+    have : [l] <+ d :: ds, from singleton_sublist.mpr hl,
+    rw hn,
+    exact max_var_sublist (d :: ds) this }
+end
+
+def min_var : clause → nat
+| []        := 1000000 -- Some large number
+| (l :: ls) := min l.var (min_var ls)
+
+/- Alternative defs -/
+def max_var_foldr (c : clause) : nat :=
+  c.foldr (λ l n, max l.var n) 0
+
+def min_var_foldr (c : clause) : nat :=
+  c.foldr (λ l n, min l.var n) 1000000
+
+/- Alternative definition 
+   Technically, the empty clause evals to ff, so reduce gives only the two literals
+def reduced : clause → clause
+| []        := []
+| (l :: ls) := if l ∈ ls then (if l.flip ∈ ls then [l, l.flip] else reduced ls) else l :: reduced ls
+-/
 
 end clause

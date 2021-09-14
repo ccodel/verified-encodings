@@ -28,6 +28,8 @@ open clause
 open cnf
 open explode
 
+instance : has_append xor_gate := ⟨list.append⟩
+
 -- The conversion of the XOR gate to a clause is a nice way of sweeping
 -- uner the rug that the two definitions are actually identical
 -- TODO canonical way of saying we want the nil/empty clause?
@@ -46,6 +48,13 @@ def eval (α : assignment) (g : xor_gate) : bool :=
 
 lemma eval_cons (α : assignment) (l : literal) (g : xor_gate) : eval α (l :: g) = bxor (literal.eval α l) (eval α g) :=
 by simp [eval, foldr_cons, bool.bxor_comm]
+
+lemma eval_concat (α : assignment) (g₁ g₂ : xor_gate) : eval α (g₁ ++ g₂) = bxor (eval α g₁) (eval α g₂) :=
+begin
+  induction g₁ with l ls ih,
+  { simp },
+  { simp [eval_cons, ih] }
+end
 
 theorem eval_cons_conjunctive (α : assignment) (l : literal) (g : xor_gate) : 
   eval α (l :: g) = (literal.eval α l || eval α g) && (!(literal.eval α l) || !(eval α g)) :=
