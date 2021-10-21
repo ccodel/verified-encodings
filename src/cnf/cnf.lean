@@ -1,13 +1,9 @@
 /-
-This file contains the definitions of and basic operations on variables, literals,
-clauses, and conjunctive normal form.
+This file contains the definitions of the conjunctive normal form. 
 
 Authors: Cayden Codel, Jeremy Avigad, Marijn Heule
 Carnegie Mellon University
 -/
-
--- TODO: by_cases can often replace classical.em (a = b), etc.
--- TODO: Use variables to clean up theorem definitions, etc.
 
 import basic
 import cnf.literal
@@ -28,7 +24,8 @@ open literal
 open clause
 open list
 
-/- Instance properties -/
+/-! # Instance properties -/
+
 instance : inhabited cnf := ⟨[default clause]⟩
 instance : has_mem clause cnf := ⟨list.mem⟩
 instance : has_emptyc cnf := ⟨list.nil⟩
@@ -37,86 +34,86 @@ instance : has_inter cnf := ⟨list.inter⟩
 instance : has_singleton clause cnf := ⟨λ c, [c]⟩ 
 instance : has_insert clause cnf := ⟨list.insert⟩
 instance : has_append cnf := ⟨list.append⟩
+instance : has_subset cnf := ⟨list.subset⟩
 
-/-! # sim_erase -/
--- If we only care about evaluations, we can weaken the erase operation to removing similar clauses only
--- See clause.eval_sim for motivation
-
-def sim_erase : cnf → clause → cnf
-| []          c := []
-| (cl :: cls) c := if cl ~ c then cls else cl :: sim_erase cls c
-
--- Technically, sim_erase "inherits" a lot of functionality from erase, as it is weaker
--- We reproduce only a few results here
-@[simp] theorem sim_erase_nil {c : clause} : sim_erase [] c = [] := rfl
-
-@[simp] theorem sim_erase_cons_head {c₁ c₂ : clause} {f : cnf} (h : c₁ ~ c₂) : sim_erase (c₁ :: f) c₂ = f :=
-by simp [sim_erase, h]
-
-theorem sim_erase_cons_tail {c₁ c₂ : clause} {f : cnf} (h : ¬(c₁ ~ c₂)) : sim_erase (c₁ :: f) c₂ = c₁ :: (sim_erase f c₂) :=
-by simp [sim_erase, h]
-
-theorem sim_erase_of_not_sim {c : clause} {f : cnf} (h : ∀ cl ∈ f, ¬(cl ~ c)) : sim_erase f c = f :=
-begin
-  induction f with cl cls ih,
-  { simp [sim_erase_nil] },
-  { simp [h cl (mem_cons_self cl cls), sim_erase], simp at h, simp [ih h.2] } -- TODO tighten up?
-end
-
-/-
-by { induction f with cl cls ih, { exact sim_erase_nil },
-  unfold sim_erase, have : ¬ cl ~ c, from h cl (mem_cons_self cl cls), simp [this], }
-  -/
-
-/-! ### Eval -/
+/-! ### Evaluation under assignment -/
 
 /- The clauses of the CNF are joined by conjunctions, so all must evaluate to true -/
-def eval (α : assignment) (f : cnf) : bool :=
-  f.foldr (λ c, λ b, b && (c.eval α)) tt
+protected def eval (α : assignment) (f : cnf) : bool :=
+  f.foldr (λ c b, b && (clause.eval α c)) tt
 
-@[simp] theorem eval_nil {α : assignment} : eval α [] = tt := rfl
+@[simp] theorem eval_nil {α : assignment} : cnf.eval α [] = tt := rfl
 
-@[simp] theorem eval_singleton {α : assignment} {c : clause} : eval α [c] = clause.eval α c := by simp [eval]
+@[simp] theorem eval_singleton {α : assignment} {c : clause} : 
+  cnf.eval α [c] = clause.eval α c :=
+by simp [cnf.eval]
 
-theorem eval_cons {α : assignment} {c : clause} {f : cnf} : eval α (c :: f) = (clause.eval α c && eval α f) :=
-by simp [eval, bool.band_comm]
+theorem eval_cons {α : assignment} {c : clause} {f : cnf} : 
+  cnf.eval α (c :: f) = (clause.eval α c && cnf.eval α f) :=
+by simp [cnf.eval, bool.band_comm]
 
-theorem eval_concat (α : assignment) (f₁ f₂ : cnf) : eval α (f₁ ++ f₂) = eval α f₁ && eval α f₂ :=
-begin
-  induction f₁ with c cs ih,
-  { simp },
-  { simp [eval_cons, ih] }
-end
+theorem ne_nil_of_eval_ff {α : assignment} {f : cnf} :
+  cnf.eval α f = ff → f ≠ [] :=
+by { contrapose, simp, intro h, simp [h] }
 
-theorem eval_tt_iff_clauses_tt {α : assignment} {f : cnf} : eval α f = tt ↔ ∀ c ∈ f, clause.eval α c = tt :=
+theorem eval_ff_cons_of_eval_ff {α : assignment} {f : cnf} (c : clause) :
+  cnf.eval α f = ff → cnf.eval α (c :: f) = ff :=
+by { simp [cnf.eval], intro h, simp [h] }
+
+theorem eval_append (α : assignment) (f₁ f₂ : cnf) : 
+  cnf.eval α (f₁ ++ f₂) = cnf.eval α f₁ && cnf.eval α f₂ :=
+by { induction f₁ with c cs ih, simp, simp [eval_cons, ih] }
+
+lemma forall_clause_eval_tt_of_eval_tt {α : assignment} {f : cnf} : 
+  cnf.eval α f = tt → ∀ c ∈ f, clause.eval α c = tt :=
 begin
   induction f with c cs ih,
-  { simp }, split,
+  { simp },
   { simp [eval_cons], 
     intros hc hcs,
-    exact and.intro hc (ih.mp hcs) },
-  { simp [eval_cons], 
-    intros he ha,
-    simp [he, ih.mpr ha] }
+    exact and.intro hc (ih hcs) }
 end
 
-theorem eval_ff_iff_exists_clause_ff {α : assignment} {f : cnf} : eval α f = ff ↔ ∃ c ∈ f, clause.eval α c = ff :=
+lemma eval_tt_of_forall_clause_eval_tt {α : assignment} {f : cnf} :
+  (∀ c ∈ f, clause.eval α c = tt) → cnf.eval α f = tt :=
 begin
   induction f with c cs ih,
-  { simp }, split,
+  { simp },
+  { simp [eval_cons],
+    intros hc he,
+    simp [hc, ih he] }
+end
+
+theorem eval_tt_iff_forall_clause_eval_tt {α : assignment} {f : cnf} :
+  cnf.eval α f = tt ↔ ∀ c ∈ f, clause.eval α c = tt :=
+⟨forall_clause_eval_tt_of_eval_tt, eval_tt_of_forall_clause_eval_tt⟩
+
+lemma exists_clause_eval_ff_of_eval_ff {α : assignment} {f : cnf} : 
+  cnf.eval α f = ff → ∃ c ∈ f, clause.eval α c = ff :=
+begin
+  induction f with c cs ih,
+  { simp },
   { simp [eval_cons], 
     rintros (hc | hcs),
-    { use c, simp [hc] },
-    { rcases ih.mp hcs with ⟨c, hc1, hc2⟩,
+    { use [c, hc] },
+    { rcases ih hcs with ⟨c, hc1, hc2⟩,
       use c, simp [hc1, hc2] } },
-  { simp [eval_cons],
-    split,
-    { intro hc, left, exact hc },
-    { intros a ha haf, right,
-      have : ∃ (cl : clause) (H : cl ∈ cs), clause.eval α cl = ff,
-        { use a, simp [ha, haf] },
-      exact ih.mpr this } }
 end
+
+lemma eval_ff_of_exists_clause_eval_ff {α : assignment} {f : cnf} :
+  (∃ c ∈ f, clause.eval α c = ff) → cnf.eval α f = ff :=
+begin
+  induction f with c cs ih,
+  { simp },
+  { rintros ⟨cl, hcl, heval⟩,
+    rcases eq_or_mem_of_mem_cons hcl with (rfl | h),
+    { simp only [eval_cons, heval, ff_band] },
+    { exact eval_ff_cons_of_eval_ff c (ih ⟨cl, h, heval⟩) } }
+end
+
+theorem eval_ff_iff_exists_clause_eval_ff {α : assignment} {f : cnf} :
+  cnf.eval α f = ff ↔ ∃ c ∈ f, clause.eval α c = ff :=
+⟨exists_clause_eval_ff_of_eval_ff, eval_ff_of_exists_clause_eval_ff⟩
 
 /-! ### Counting -/
 
@@ -128,4 +125,101 @@ def count_tt (α : assignment) (f : cnf) : nat :=
 def count_ff (α : assignment) (f : cnf) : nat :=
   length $ f.filter (λ c, c.eval α = ff)
 
+/-! ### Tseitin groundwork -/
+
+-- A manual definition for vars using fold. Hard to prove things about
+-- so the alternative definition is used
+/-
+def vars : cnf → list nat
+| []        := []
+| (c :: cs) := list.foldr (λ v s, if v ∈ s then s else v :: s) (vars cs) (clause.vars c)
+-/
+
+def vars : cnf → list nat
+| []        := []
+| (c :: cs) := (vars cs) ∪ (clause.vars c) -- I prefer the union the other way, but alas...
+
+@[simp] theorem vars_nil : vars [] = [] := rfl
+
+@[simp] theorem vars_singleton (c : clause) : vars [c] = clause.vars c :=
+by simp [vars, var, nil_union]
+
+theorem clause_vars_subset_of_mem {f : cnf} {c : clause} :
+  c ∈ f → (clause.vars c) ⊆ vars f :=
+begin
+  intro h,
+  induction f with d ds ih,
+  { exact absurd h (not_mem_nil c) },
+  { rcases eq_or_mem_of_mem_cons h with rfl | h2,
+    { simp [vars],
+      intros a ha,
+      exact mem_union_right (vars ds) ha },
+    { have ihred := ih h2,
+      unfold vars,
+      intros a ha,
+      exact mem_union_left (ihred ha) (d.vars) } }
+end
+
+theorem mem_vars_of_mem_clause_of_mem {f : cnf} {c : clause} {n : nat} :
+  c ∈ f → n ∈ (clause.vars c) → n ∈ vars f :=
+begin
+  induction f with d ds ih,
+  { simp },
+  { intros hc hn,
+    rcases eq_or_mem_of_mem_cons hc with rfl | hds,
+    { simp [vars, hn] },
+    { simp [vars, ih hds hn] } }
+end
+
+theorem exists_mem_clause_of_mem_vars {f : cnf} {n : nat} :
+  n ∈ vars f → ∃ (c : clause), c ∈ f ∧ n ∈ (clause.vars c) :=
+begin
+  induction f with c cs ih,
+  { simp },
+  { intro hn,
+    simp [vars] at hn,
+    rcases hn with hcs | hc,
+    { rcases ih hcs with ⟨cl, hcl, hcls⟩,
+      use cl,
+      simp [mem_cons_of_mem c hcl, hcls] },
+    { use c,
+      simp [mem_cons_self c cs, hc] } }
+end
+
+theorem subset_vars_of_subset_cnf {f₁ f₂ : cnf} :
+  f₁ ⊆ f₂ → (vars f₁) ⊆ (vars f₂) :=
+begin
+  intros h n hn,
+  rcases exists_mem_clause_of_mem_vars hn with ⟨c, hf, hnc⟩,
+  exact mem_vars_of_mem_clause_of_mem (h hf) hnc
+end
+
 end cnf
+
+/-! # Equivalence on domain theorems -/
+
+namespace assignment
+
+open literal
+open clause
+open cnf
+open list
+
+theorem eval_eq_of_equiv_on_domain_vars {α₁ α₂ : assignment} {f : cnf} :
+  (α₁ ≡[f.vars]≡ α₂) → cnf.eval α₁ f = cnf.eval α₂ f :=
+begin
+  intro h,
+  cases he : (cnf.eval α₂ f),
+  { apply eval_ff_iff_exists_clause_eval_ff.mpr,
+    rcases eval_ff_iff_exists_clause_eval_ff.mp he with ⟨c, hc, hff⟩,
+    use [c, hc],
+    exact eval_eq_of_equiv_on_clause2 
+      (eqod_subset_of_eqod (clause_vars_subset_of_mem hc) h).symm ▸ hff },
+  { apply eval_tt_iff_forall_clause_eval_tt.mpr,
+    intros c hc,
+    exact (eval_eq_of_equiv_on_clause2
+      (eqod_subset_of_eqod (clause_vars_subset_of_mem hc) h)).symm ▸
+      (eval_tt_iff_forall_clause_eval_tt.mp he c hc) }
+end
+
+end assignment
