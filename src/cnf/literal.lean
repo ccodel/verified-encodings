@@ -8,6 +8,9 @@
 -/
 
 import init.data.nat
+import init.logic
+import logic.function.basic
+import data.list.basic
 
 /- 
   All propositional formulas are comprised of Boolean variables.
@@ -16,155 +19,125 @@ import init.data.nat
 
   Literals are positive and negative instances of those variables.
 -/
+@[derive decidable_eq]
 inductive literal : Type
-  | Pos : nat → literal
-  | Neg : nat → literal
+| Pos : nat → literal
+| Neg : nat → literal
 
 /- Assignments give boolean values to the variables -/
 def assignment := nat → bool
 
 namespace literal
 
+open function
+
 /- Instance properties -/
 instance : inhabited literal := ⟨Pos 0⟩
 
-instance has_decidable_eq : decidable_eq literal
-  | (Pos n) (Pos m) :=
-    match nat.decidable_eq n m with
-      | is_true hnm   := is_true (hnm ▸ eq.refl (Pos n))
-      | is_false hneq := is_false (λ h, literal.no_confusion h (λ habs, absurd habs hneq))
-    end
-  | (Pos _) (Neg _) := is_false (λ h, literal.no_confusion h)
-  | (Neg _) (Pos _) := is_false (λ h, literal.no_confusion h)
-  | (Neg n) (Neg m) :=
-    match nat.decidable_eq n m with
-      | is_true hnm   := is_true (hnm ▸ eq.refl (Neg n))
-      | is_false hneq := is_false (λ h, literal.no_confusion h (λ habs, absurd habs hneq))
-    end
-
 /- Extracts the natural number boolean variable of the literal -/
 def var : literal → nat
-  | (Pos n) := n
-  | (Neg n) := n
+| (Pos n) := n
+| (Neg n) := n
 
 /- Negated literals receive the opposite boolean value as the variable -/
-def eval (α : assignment) : literal → bool
-  | (Pos n) := α n
-  | (Neg n) := bnot (α n)
+protected def eval (α : assignment) : literal → bool
+| (Pos n) := α n
+| (Neg n) := bnot (α n)
+
+/-! # Flip -/
 
 /- Flips the parity of the literal from positive to negative and vice versa -/
 def flip : literal → literal
-  | (Pos n) := Neg n
-  | (Neg n) := Pos n
+| (Pos v) := Neg v
+| (Neg v) := Pos v
 
-lemma ne_flip_self : ∀ (l : literal), l.flip ≠ l
-| (Pos n) := by simp [flip]
-| (Neg n) := by simp [flip]
+theorem eval_flip (α : assignment) (l : literal) : literal.eval α l = bnot (literal.eval α l.flip) :=
+by cases l; simp [flip, literal.eval]
 
-lemma var_flip_eq_var : ∀ (l : literal), l.var = l.flip.var
-| (Pos n) := by simp [flip, var]
-| (Neg n) := by simp [flip, var]
+theorem eval_flip2 (α : assignment) (l : literal) : literal.eval α l.flip = bnot (literal.eval α l) :=
+by cases l; simp [flip, literal.eval]
 
-lemma eq_flip_of_eq_var_of_ne : ∀ {l₁ l₂ : literal}, l₁ ≠ l₂ → l₁.var = l₂.var → l₁.flip = l₂
-| (Pos n) (Pos m) := by { simp [var], intros hne heq, exact absurd heq hne }
-| (Pos n) (Neg m) := by { simp [var, flip], intro _, exact id }
-| (Neg n) (Pos m) := by { simp [var, flip], intro _, exact id }
-| (Neg n) (Neg m) := by { simp [var], intros hne heq, exact absurd heq hne }
+theorem eval_flip_of_eval {α : assignment} {l : literal} {b : bool} :
+  literal.eval α l = b → literal.eval α l.flip = !b :=
+assume h, by { rw eval_flip at h, exact congr_arg bnot h ▸ (bnot_bnot _).symm }
 
--- NOTE: These two are basically stating that flip is a bijective function
-lemma eq_flip_of_flip_eq : ∀ {l₁ l₂ : literal}, l₁.flip = l₂ → l₁ = l₂.flip
-| (Pos n) (Pos m) := by { contradiction }
-| (Pos n) (Neg m) := by { simp [flip], exact id }
-| (Neg n) (Pos m) := by { simp [flip], exact id }
-| (Neg n) (Neg m) := by { contradiction }
+@[simp] theorem flip_ne (l : literal) : l.flip ≠ l :=
+by cases l; simp [flip]
 
-lemma ne_flip_of_flip_ne : ∀ {l₁ l₂ : literal}, l₁.flip ≠ l₂ → l₁ ≠ l₂.flip
-| (Pos n) (Pos m) := by simp [flip]
-| (Pos n) (Neg m) := by { simp [flip], exact id }
-| (Neg n) (Pos m) := by { simp [flip], exact id }
-| (Neg n) (Neg m) := by simp [flip]
+theorem flip_flip (l : literal) : l.flip.flip = l :=
+by cases l; simp [flip]
 
-lemma eq_of_flip_ne_of_var_eq : ∀ {l₁ l₂ : literal}, l₁.var = l₂.var → l₁.flip ≠ l₂ → l₁ = l₂
-| (Pos n) (Pos m) := by { simp [flip, var], intros h _, exact h }
-| (Pos n) (Neg m) := by { simp [flip, var], intros h hn, exact hn h }
-| (Neg n) (Pos m) := by { simp [flip, var], intros h hn, exact hn h }
-| (Neg n) (Neg m) := by { simp [flip, var], intros h _, exact h }
+theorem flip_var_eq (l : literal) : l.flip.var = l.var :=
+by cases l; simp [flip, var]
 
-lemma eq_flip_flip : ∀ (l : literal), l.flip.flip = l
-| (Pos n) := by simp [flip]
-| (Neg n) := by simp [flip]
+-- TODO I sense a two line proof, but I can't get ▸ to work correctly?
+@[simp] theorem flip_injective : injective (flip : literal → literal) :=
+begin
+  intros l₁ l₂ h,
+  have := congr_arg flip h,
+  simp [flip_flip] at this,
+  assumption
+end
 
-lemma eval_flip (α : assignment) : ∀ (l : literal), eval α l = bnot (eval α l.flip)
-| (Pos n) := by simp [flip, eval]
-| (Neg n) := by simp [flip, eval]
+theorem flip_inj {l₁ l₂ : literal} : l₁.flip = l₂.flip ↔ l₁ = l₂ :=
+flip_injective.eq_iff
 
-lemma eval_flip_flip (α : assignment) : ∀ (l : literal), eval α l = eval α l.flip.flip
-| (Pos n) := by simp [flip]
-| (Neg n) := by simp [flip]
+@[simp] theorem flip_surjective : surjective (flip : literal → literal) :=
+assume l, exists.intro l.flip (flip_flip l)
 
-/- Sets the literal to the positive form -/
-def set_pos : literal → literal
-  | (Pos n) := Pos n
-  | (Neg n) := Pos n
+@[simp] theorem flip_bijective : bijective (flip : literal → literal) :=
+⟨flip_injective, flip_surjective⟩
 
-/- Sets the literal to the negative form -/
-def set_neg : literal → literal
-  | (Pos n) := Neg n
-  | (Neg n) := Neg n
+-- TODO way to case two things in the same case statement?
+lemma eq_or_flip_eq_of_var_eq {l₁ l₂ : literal} : l₁.var = l₂.var → l₁ = l₂ ∨ l₁.flip = l₂ :=
+by cases l₁; { cases l₂; simp [flip, var] }
 
-/- Returns tt if the literal is positive, ff otherwise -/
+lemma var_eq_of_eq_or_flip_eq {l₁ l₂ : literal} : l₁ = l₂ ∨ l₁.flip = l₂ → l₁.var = l₂.var :=
+assume h, or.elim h
+  (assume : l₁ = l₂, congr_arg var this)
+  (assume : l₁.flip = l₂, congr_arg var this ▸ (flip_var_eq l₁).symm)
+
+theorem eq_or_flip_eq_iff_var_eq {l₁ l₂ : literal} : l₁.var = l₂.var ↔ l₁ = l₂ ∨ l₁.flip = l₂ :=
+⟨eq_or_flip_eq_of_var_eq, var_eq_of_eq_or_flip_eq⟩
+
+theorem flip_eq_iff_eq_flip {l₁ l₂ : literal} : l₁.flip = l₂ ↔ l₁ = l₂.flip :=
+⟨λ h, congr_arg flip h ▸ (flip_flip l₁).symm, λ h, (congr_arg flip h).symm ▸ flip_flip l₂⟩
+
+theorem flip_eq_of_ne_of_var_eq {l₁ l₂ : literal} :
+  l₁ ≠ l₂ → l₁.var = l₂.var → l₁.flip = l₂ :=
+begin
+  intros h₁ h₂,
+  rcases eq_or_flip_eq_of_var_eq h₂,
+  { contradiction },
+  { exact h }
+end
+
+-- Could be proven in terms of the above theorem but too hard/too many ▸
+theorem eq_of_flip_ne_of_var_eq {l₁ l₂ : literal} :
+  l₁.var = l₂.var → l₁.flip ≠ l₂ → l₁ = l₂ :=
+begin
+  intros h₁ h₂,
+  rcases eq_or_flip_eq_of_var_eq h₁,
+  { exact h },
+  { contradiction }
+end
+
+/-! # Miscellany -/
+
+def set_pos (l : literal) : literal := Pos (l.var)
+def set_neg (l : literal) : literal := Neg (l.var)
+
 def is_pos : literal → bool
-  | (Pos _) := tt
-  | (Neg _) := ff
+| (Pos _) := tt
+| (Neg _) := ff
 
 /- Returns tt if the literal is negative, ff otherwise -/
 def is_neg : literal → bool
-  | (Pos _) := ff
-  | (Neg _) := tt
+| (Pos _) := ff
+| (Neg _) := tt
 
-theorem exists_nat_of_lit : ∀ (l : literal), ∃ (n : nat), l = Pos n ∨ l = Neg n
-| (Pos n) := by { existsi n, left, refl }
-| (Neg n) := by { existsi n, right, refl }
-
-theorem pos_or_neg_of_var_eq_nat : ∀ {l : literal} {n : nat}, l.var = n → l = Pos n ∨ l = Neg n
-| (Pos x) n := by { simp [var], exact id }
-| (Neg x) n := by { simp [var], exact id }
-
--- This seems like a lot of casing... can this be generalized?
-
-lemma ne_pos_neg_of_nat {n : nat} : Pos n ≠ Neg n := dec_trivial
-
-lemma ne_nat_of_ne_pos {n m : nat} (h : Pos n ≠ Pos m) : n ≠ m :=
-begin
-  intro heq,
-  exact absurd (congr_arg Pos heq) h,
-end
-
-lemma ne_nat_of_ne_neg {n m : nat} (h : Neg n ≠ Neg m) : n ≠ m :=
-begin
-  intro heq,
-  exact absurd (congr_arg Neg heq) h,
-end
-
-theorem ne_lit_of_ne_nat {n m : nat} (h : n ≠ m) : Pos n ≠ Neg m := dec_trivial
-
-theorem ne_lit_of_nat {n m : nat} : Pos n ≠ Neg m :=
-begin
-  cases classical.em (n = m) with he hne,
-  { rw he, exact ne_pos_neg_of_nat},
-  exact ne_lit_of_ne_nat hne,
-end
-
-theorem ne_pos_of_ne_nat {n m : nat} (h : n ≠ m) : Pos n ≠ Pos m :=
-begin
-  intro hp,
-  exact absurd (congr_arg var hp) h,
-end
-
-theorem ne_neg_of_ne_nat {n m : nat} (h : n ≠ m) : Neg n ≠ Neg m :=
-begin
-  intro hp,
-  exact absurd (congr_arg var hp) h,
-end
+-- TODO this is essentially useless, as casing on l accomplishes the same thing
+theorem pos_or_neg_of_var_eq_nat {l : literal} {n : nat} : l.var = n → l = Pos n ∨ l = Neg n :=
+by cases l; simp [var]
 
 end literal
