@@ -117,6 +117,42 @@ begin
   { intros n ha hb, contradiction }
 end
 
+/-! # Append -/
+
+-- When two domains are disjoint, their combination are equivalent on each respective domain
+def append (α₁ α₂ : assignment) (l₁ l₂ : list nat) (h : disjoint l₁ l₂) :=
+  (λ n, if n ∈ l₁ then α₁ n else α₂ n)
+
+theorem append_eval_left_of_mem_left (α₁ α₂ : assignment) {l₁ l₂ : list nat} (h : disjoint l₁ l₂) {n : nat} :
+  n ∈ l₁ → (append α₁ α₂ l₁ l₂ h) n = α₁ n :=
+begin
+  intro hn,
+  simp [append, disjoint_left.mp h hn],
+  intro hf,
+  exact absurd hn hf
+end
+
+theorem append_eval_left_of_not_mem_left (α₁ α₂ : assignment) {l₁ l₂ : list nat} (h : disjoint l₁ l₂) {n : nat} :
+  n ∉ l₁ → (append α₁ α₂ l₁ l₂ h) n = α₂ n :=
+begin
+  intro h,
+  simp [append, h]
+end
+
+theorem append_eval_right_of_mem_right (α₁ α₂ : assignment) {l₁ l₂ : list nat} (h : disjoint l₁ l₂) {n : nat} :
+  n ∈ l₂ → (append α₁ α₂ l₁ l₂ h) n = α₂ n :=
+begin
+  intro hn,
+  simp [append, disjoint_right.mp h hn]
+end
+
+theorem eqod_of_append_left (α₁ α₂ : assignment) {l₁ l₂ : list nat} (h : disjoint l₁ l₂) :
+  (append α₁ α₂ l₁ l₂ h) ≡[l₁]≡ α₁ :=
+assume n hn, append_eval_left_of_mem_left α₁ α₂ h hn
+
+theorem eqod_of_append_right (α₁ α₂ : assignment) {l₁ l₂ : list nat} (h : disjoint l₁ l₂) :
+  (append α₁ α₂ l₁ l₂ h) ≡[l₂]≡ α₂ :=
+assume n hn, append_eval_right_of_mem_right α₁ α₂ h hn
 
 /-! # Miscellaneous -/
 

@@ -12,6 +12,7 @@ import basic
 import data.nat.basic
 import init.data.nat.lemmas
 import data.list.basic
+import data.list.count
 import data.list.nodup
 import data.list.perm
 
@@ -400,16 +401,16 @@ end
 
 -- Sublist theorems (can have subset theorems too)
 theorem count_pos_sublist {c₁ c₂ : clause} : c₁ <+ c₂ → count_pos c₁ ≤ count_pos c₂ := 
-assume h, by simp [count_pos, countp_le_of_sublist (λ l, is_pos l = tt) h]
+assume h, by simp [count_pos, sublist.countp_le (λ l, is_pos l = tt) h]
 
 theorem count_neg_sublist {c₁ c₂ : clause} : c₁ <+ c₂ → count_neg c₁ ≤ count_neg c₂ :=
-assume h, by simp [count_neg, countp_le_of_sublist (λ l, is_neg l = tt) h]
+assume h, by simp [count_neg, sublist.countp_le (λ l, is_neg l = tt) h]
 
 theorem count_tt_sublist (α : assignment) {c₁ c₂ : clause} : c₁ <+ c₂ → count_tt α c₁ ≤ count_tt α c₂ :=
-assume h, by simp [count_tt, countp_le_of_sublist (λ l, literal.eval α l = tt) h]
+assume h, by simp [count_tt, sublist.countp_le (λ l, literal.eval α l = tt) h]
 
 theorem count_ff_sublist (α : assignment) {c₁ c₂ : clause} : c₁ <+ c₂ → count_ff α c₁ ≤ count_ff α c₂ :=
-assume h, by simp [count_ff, countp_le_of_sublist (λ l, literal.eval α l = ff) h]
+assume h, by simp [count_ff, sublist.countp_le (λ l, literal.eval α l = ff) h]
 
 theorem exists_pos_iff_pos_count_pos {c : clause} : count_pos c > 0 ↔ ∃ l ∈ c, is_pos l :=
 by simp [count_pos, countp_pos]
@@ -532,10 +533,10 @@ begin
     intros c hc hne,
     { rcases exists_of_map_singleton hc with ⟨l, rfl, hl⟩,
       cases l; simp [is_pos, bool.to_nat] at hne; simp only [var] at hl,
-      { have := cond_ff_of_not_cond_eq_first_of_ne (literal.eval α (Neg m)) zero_ne_one hne,
+      { have := cond_tt_of_not_cond_eq_second_of_ne (literal.eval α (Pos m)) zero_ne_one hne,
         simp [literal.eval] at this,
         simp [hl, this, literal.eval] },
-      { have := cond_tt_of_not_cond_eq_second_of_ne (!literal.eval α (Pos m)) one_ne_zero hne,
+      { have := cond_ff_of_not_cond_eq_first_of_ne (literal.eval α (Pos m)) one_ne_zero hne,
         simp [literal.eval] at this,
         simp [this, literal.eval, hl] } },
     { rcases exists_cons_of_map_cons hc with ⟨l, ls, rfl, hl, hls⟩,
@@ -673,11 +674,6 @@ theorem mem_vars_iff_mem_map_vars {c : clause} {n : nat} :
 theorem not_mem_vars_iff_not_mem_map_vars {c : clause} {n : nat} :
   n ∉ map var c ↔ n ∉ vars c :=
 by simp [mem_vars_iff_mem_map_vars]
-
-theorem abc {α : Type} [decidable_eq α] {a b : α} {l : list α} : a ∈ l → b ∉ l → a ≠ b :=
-begin
-  library_search,
-end
 
 -- Premises can be curried, but and_imp is being troublesome
 theorem not_mem_vars_of_not_mem_clause {c : clause} {l : literal} : 

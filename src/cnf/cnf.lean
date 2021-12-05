@@ -171,7 +171,7 @@ begin
     { simp [vars, ih hds hn] } }
 end
 
-theorem exists_mem_clause_of_mem_vars {f : cnf} {n : nat} :
+protected theorem exists_mem_clause_of_mem_vars {f : cnf} {n : nat} :
   n ∈ vars f → ∃ (c : clause), c ∈ f ∧ n ∈ (clause.vars c) :=
 begin
   induction f with c cs ih,
@@ -190,8 +190,15 @@ theorem subset_vars_of_subset_cnf {f₁ f₂ : cnf} :
   f₁ ⊆ f₂ → (vars f₁) ⊆ (vars f₂) :=
 begin
   intros h n hn,
-  rcases exists_mem_clause_of_mem_vars hn with ⟨c, hf, hnc⟩,
+  rcases cnf.exists_mem_clause_of_mem_vars hn with ⟨c, hf, hnc⟩,
   exact mem_vars_of_mem_clause_of_mem (h hf) hnc
+end
+
+theorem exists_not_mem_vars : ∀ (f : cnf), ∃ (n : nat), n ∉ (vars f)
+| []        := by simp
+| f := begin
+  use (max_nat (vars f)) + 1,
+  exact not_mem_of_gt_max_nat (lt_add_one (max_nat (vars f))),
 end
 
 end cnf

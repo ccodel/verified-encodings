@@ -48,56 +48,42 @@ protected def eval (α : assignment) : literal → bool
 
 /- Flips the parity of the literal from positive to negative and vice versa -/
 def flip : literal → literal
-| (Pos v) := Neg v
-| (Neg v) := Pos v
-
-theorem eval_flip (α : assignment) (l : literal) : literal.eval α l = bnot (literal.eval α l.flip) :=
-by cases l; simp [flip, literal.eval]
-
-theorem eval_flip2 (α : assignment) (l : literal) : literal.eval α l.flip = bnot (literal.eval α l) :=
-by cases l; simp [flip, literal.eval]
-
-theorem eval_flip_of_eval {α : assignment} {l : literal} {b : bool} :
-  literal.eval α l = b → literal.eval α l.flip = !b :=
-assume h, by { rw eval_flip at h, exact congr_arg bnot h ▸ (bnot_bnot _).symm }
+| (Pos n) := Neg n
+| (Neg n) := Pos n
 
 @[simp] theorem flip_ne (l : literal) : l.flip ≠ l :=
 by cases l; simp [flip]
 
 theorem flip_flip (l : literal) : l.flip.flip = l :=
-by cases l; simp [flip]
+by cases l; simp only [flip]
 
 theorem flip_var_eq (l : literal) : l.flip.var = l.var :=
-by cases l; simp [flip, var]
+by cases l; simp only [flip, var]
 
--- TODO I sense a two line proof, but I can't get ▸ to work correctly?
-@[simp] theorem flip_injective : injective (flip : literal → literal) :=
-begin
-  intros l₁ l₂ h,
-  have := congr_arg flip h,
-  simp [flip_flip] at this,
-  assumption
-end
+@[simp] theorem flip_injective : injective (literal.flip) :=
+assume l₁ l₂ h, (flip_flip l₂) ▸ ((flip_flip l₁) ▸ (congr_arg flip h))
 
 theorem flip_inj {l₁ l₂ : literal} : l₁.flip = l₂.flip ↔ l₁ = l₂ :=
 flip_injective.eq_iff
 
-@[simp] theorem flip_surjective : surjective (flip : literal → literal) :=
+@[simp] theorem flip_surjective : surjective flip :=
 assume l, exists.intro l.flip (flip_flip l)
 
-@[simp] theorem flip_bijective : bijective (flip : literal → literal) :=
+@[simp] theorem flip_bijective : bijective flip :=
 ⟨flip_injective, flip_surjective⟩
 
--- TODO way to case two things in the same case statement?
-lemma eq_or_flip_eq_of_var_eq {l₁ l₂ : literal} : l₁.var = l₂.var → l₁ = l₂ ∨ l₁.flip = l₂ :=
+lemma eq_or_flip_eq_of_var_eq {l₁ l₂ : literal} : 
+  l₁.var = l₂.var → l₁ = l₂ ∨ l₁.flip = l₂ :=
 by cases l₁; { cases l₂; simp [flip, var] }
 
-lemma var_eq_of_eq_or_flip_eq {l₁ l₂ : literal} : l₁ = l₂ ∨ l₁.flip = l₂ → l₁.var = l₂.var :=
+lemma var_eq_of_eq_or_flip_eq {l₁ l₂ : literal} : 
+  l₁ = l₂ ∨ l₁.flip = l₂ → l₁.var = l₂.var :=
 assume h, or.elim h
   (assume : l₁ = l₂, congr_arg var this)
   (assume : l₁.flip = l₂, congr_arg var this ▸ (flip_var_eq l₁).symm)
 
-theorem eq_or_flip_eq_iff_var_eq {l₁ l₂ : literal} : l₁.var = l₂.var ↔ l₁ = l₂ ∨ l₁.flip = l₂ :=
+theorem eq_or_flip_eq_iff_var_eq {l₁ l₂ : literal} : 
+  l₁.var = l₂.var ↔ l₁ = l₂ ∨ l₁.flip = l₂ :=
 ⟨eq_or_flip_eq_of_var_eq, var_eq_of_eq_or_flip_eq⟩
 
 theorem flip_eq_iff_eq_flip {l₁ l₂ : literal} : l₁.flip = l₂ ↔ l₁ = l₂.flip :=
@@ -107,19 +93,41 @@ theorem flip_eq_of_ne_of_var_eq {l₁ l₂ : literal} :
   l₁ ≠ l₂ → l₁.var = l₂.var → l₁.flip = l₂ :=
 begin
   intros h₁ h₂,
-  rcases eq_or_flip_eq_of_var_eq h₂,
+  cases eq_or_flip_eq_of_var_eq h₂,
   { contradiction },
   { exact h }
 end
 
--- Could be proven in terms of the above theorem but too hard/too many ▸
 theorem eq_of_flip_ne_of_var_eq {l₁ l₂ : literal} :
-  l₁.var = l₂.var → l₁.flip ≠ l₂ → l₁ = l₂ :=
+  l₁.flip ≠ l₂ → l₁.var = l₂.var → l₁ = l₂ :=
 begin
   intros h₁ h₂,
-  rcases eq_or_flip_eq_of_var_eq h₁,
+  cases eq_or_flip_eq_of_var_eq h₂,
   { exact h },
   { contradiction }
+end
+
+/-! # Flip evaluation -/
+
+theorem eval_flip (α : assignment) (l : literal) : 
+  literal.eval α l = bnot (literal.eval α l.flip) :=
+by cases l; simp only [flip, literal.eval, bnot_bnot]
+
+theorem eval_flip2 (α : assignment) (l : literal) : 
+  literal.eval α l.flip = bnot (literal.eval α l) :=
+by cases l; simp only [flip, literal.eval, bnot_bnot]
+
+theorem eval_flip_of_eval {α : assignment} {l : literal} {b : bool} :
+  literal.eval α l = b → literal.eval α l.flip = !b :=
+assume h, by { rw eval_flip at h, exact congr_arg bnot h ▸ (bnot_bnot _).symm }
+
+theorem eval_of_eval_flip {α : assignment} {l : literal} {b : bool} :
+  literal.eval α l.flip = b → literal.eval α l = !b :=
+begin
+  intro h,
+  rw eval_flip at h,
+  rw flip_flip l at h,
+  exact (bnot_bnot (literal.eval α l)) ▸ congr_arg bnot h,
 end
 
 /-! # Miscellany -/
@@ -131,13 +139,23 @@ def is_pos : literal → bool
 | (Pos _) := tt
 | (Neg _) := ff
 
-/- Returns tt if the literal is negative, ff otherwise -/
 def is_neg : literal → bool
 | (Pos _) := ff
 | (Neg _) := tt
 
--- TODO this is essentially useless, as casing on l accomplishes the same thing
-theorem pos_or_neg_of_var_eq_nat {l : literal} {n : nat} : l.var = n → l = Pos n ∨ l = Neg n :=
+@[simp] theorem pos_ne_neg (n : nat) : Pos n ≠ Neg n :=
+by simp
+
+theorem ne_of_ne_var {l₁ l₂ : literal} : l₁.var ≠ l₂.var → l₁ ≠ l₂ :=
+begin
+  contrapose,
+  simp,
+  intro h,
+  rw h
+end
+
+theorem pos_or_neg_of_var_eq_nat {l : literal} {n : nat} : 
+  l.var = n → l = Pos n ∨ l = Neg n :=
 by cases l; simp [var]
 
 end literal
