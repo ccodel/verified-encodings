@@ -162,6 +162,18 @@ protected def vars : cnf V → list V
 @[simp] theorem vars_singleton (c : clause V) : cnf.vars [c] = clause.vars c :=
 by simp [cnf.vars, var, nil_union]
 
+theorem vars_append_subset_union (f₁ f₂ : cnf V) :
+  cnf.vars (f₁ ++ f₂) ⊆ cnf.vars f₁ ∪ cnf.vars f₂ :=
+begin
+  sorry
+end
+
+theorem vars_union_subset_append (f₁ f₂ : cnf V) :
+  cnf.vars f₁ ∪ cnf.vars f₂ ⊆ cnf.vars (f₁ ++ f₂) :=
+begin
+  sorry
+end
+
 theorem clause_vars_subset_of_mem {f : cnf V} {c : clause V} :
   c ∈ f → (clause.vars c) ⊆ cnf.vars f :=
 begin

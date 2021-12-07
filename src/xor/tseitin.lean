@@ -48,353 +48,354 @@ end
 lemma three_gt_one : 3 > 1 :=
 nat.one_lt_succ_succ 1
 
-def thelper : list (literal V) → gensym V → cnf V
-| [] g₁ := [[]]
-| l  g₁ := if h : length l ≤ 3 then xor_cnf l else
-                  let ⟨v, g₂⟩ := gensym.fresh g₁ in
-                  have length (l.drop 3 ++ [Pos v]) < length l,
+lemma exists_three {α : Type u} : ∀ {l : list α},
+  length l > 3 → ∃ (a b c : α) (L : list α), a :: b :: c :: L = l
+| [] := by simp
+| (a :: []) := by simp 
+| (a :: b :: []) := by { simp, intro h, linarith }
+| (a :: b :: c :: L) := begin
+  intro _,
+  use [a, b, c, L, rfl]
+end
+
+lemma restriction_injective {f : nat → V} (hf : injective f) :
+  injective (λ n, f (n + 1)) :=
+begin
+  intros n₁ n₂ h,
+  exact add_right_cancel ((injective.eq_iff hf).mp h)
+end
+
+lemma restriction_image_subset (f : nat → V) :
+  set.range (λ n, f (n + 1)) ⊆ set.range f :=
+begin
+  intros v hv,
+  rcases set.mem_range.mp hv with ⟨y, hy⟩,
+  apply set.mem_range.mpr,
+  use [y + 1, hy]
+end
+
+lemma restriction_first {f : nat → V} (hinj : injective f) :
+  f 0 ∉ set.range (λ n, f (n + 1)) :=
+begin
+  intro h,
+  rcases set.mem_range.mp h with ⟨y, hy⟩,
+  have := (injective.eq_iff hinj).mp hy,
+  contradiction
+end
+
+lemma restriction_disjoint {f : nat → V} {l : list (literal V)}
+  (h : (∀ v ∈ set.range f, v ∉ (clause.vars l))) :
+  ∀ v ∈ set.range (λ n, f (n + 1)), v ∉ (clause.vars l) :=
+begin
+  intros v hv,
+  exact h v ((restriction_image_subset f) hv),
+end
+
+lemma res_disjoint {f : nat → V} {l : list (literal V)}
+  (hinj : injective f)
+  (h : (∀ v ∈ set.range f, v ∉ (clause.vars l))) :
+  ∀ v ∈ set.range (λ n, f (n + 1)), v ∉ (clause.vars (l.drop 3 ++ [Pos (f 0)])) :=
+begin
+  intros v hv,
+  have := (restriction_disjoint h) v hv,
+  have hleft : v ∉ clause.vars (drop 3 l), exact mt 
+    (λ h, vars_subset_of_subset (drop_subset 3 l) h)
+    ((restriction_disjoint h) v hv),
+  have hright : v ∉ clause.vars [Pos (f 0)],
+  { intro hcon,
+    simp [var] at hcon,
+    simp at hv, -- what is being simplified here?
+    rcases hv with ⟨y, rfl⟩,
+    have := (injective.eq_iff hinj).mp hcon,
+    contradiction },
+  exact not_mem_vars_append_of_not_mem_of_not_mem hleft hright
+end
+
+-- Implementation using variable stock
+def txor3 : Π (l : list (literal V)), Π (f : nat → V),
+  (injective f) → (∀ v ∈ set.range f, v ∉ (clause.vars l)) → cnf V
+| [] _ _ _ := [[]]
+| l f hinj him := if h : length l ≤ 3 then xor_cnf l else
+                  have length (l.drop 3 ++ [Pos (f 0)]) < length l,
                     from (dropn_len _ three_gt_one (not_le.mp h)),
-                  xor_cnf (l.take 3 ++ [Neg v]) ++ thelper (l.drop 3 ++ [Pos v]) g₂
+                  (xor_cnf (l.take 3 ++ [Neg (f 0)])) ++
+                  (txor3 (l.drop 3 ++ [Pos (f 0)]) (λ n, f (n + 1)) 
+                    (restriction_injective hinj) (res_disjoint hinj him))
 using_well_founded {
   rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ.1)⟩],
   dec_tac := tactic.assumption
 }
 
-def tseitin_xor3 {f : nat → V} (hf : injective f) {g : V → nat} (hg : injective g)
-  (hfg : right_inverse f g) (l : list (literal V)) : cnf V :=
-thelper l (gensym.seed hf hg hfg (clause.vars l))
+theorem txor3_eq_xor_cnf_of_len_le_three {l : list (literal V)}
+  {f : nat → V} (hinj : injective f) (him : ∀ v ∈ set.range f, v ∉ (clause.vars l)) :
+  length l ≤ 3 → (txor3 l f hinj him) = xor_cnf l :=
+begin
+  intro h,
+  cases l with l ls,
+  { simp [txor3] },
+  { unfold txor3, simp [h] }
+end
 
-lemma exists_tseitin_of_xor_cnf {f : nat → V} (hf : injective f)
-  {g : V → nat} (hg : injective g) (hfg : right_inverse f g) 
-  {l : list (literal V)} :
-  (∃ (α : assignment V), cnf.eval α (tseitin_xor3 hf hg hfg l) = tt) → 
-   ∃ (α₂ : assignment V), cnf.eval α₂ (xor_cnf l) = tt :=
+-- Switch to set version of vars across the table
+-- doesn't actually work, but can say that any new variables introduced don't conflict with earlier ones
+/-
+theorem txor3_vars_disjoint (a b c : literal V) (l : list (literal V))
+  {f : nat → V} (hinj : injective f)
+  (him : ∀ v ∈ set.range f, v ∉ (clause.vars l))
+  (him₂ : ∀ v ∈ set.range f, v ∉ (clause.vars [a, b, c])) 
+  (hdis : disjoint (clause.vars [a, b, c]) (clause.vars l)) :
+  disjoint (clause.vars [a, b, c]) (cnf.vars (txor3 l f hinj him)) :=
+begin
+end
+-/
+
+theorem stronger (l : list (literal V)) (α : assignment V)
+  {f : nat → V} (hinj : injective f)
+  (him : ∀ v ∈ set.range f, v ∉ (clause.vars l)) :
+  cnf.eval α (xor_cnf l) = tt →
+  ∃ (α₂ : assignment V), cnf.eval α₂ (txor3 l f hinj him) = tt ∧ 
+  (α ≡[clause.vars l]≡ α₂) :=
+begin
+  induction l using strong_induction_on_lists with l ih generalizing α f,
+  by_cases hlen : length l ≤ 3,
+  { rw txor3_eq_xor_cnf_of_len_le_three hinj him hlen, 
+    intro h,
+    use α,
+    exact and.intro h (eqod.refl α _) },
+  { intro h,
+    rcases exists_three (not_le.mp hlen) with ⟨a, b, c, L, rfl⟩,
+
+    unfold txor3,
+    simp [hlen, cnf.eval_append],
+
+    have c_to_app : a :: b :: c :: L = [a, b, c] ++ L, simp,
+    have ha_in : a ∈ [a, b, c], simp,
+    have hb_in : b ∈ [a, b, c], simp,
+    have hc_in : c ∈ [a, b, c], simp,
+    have hav_in : a.var ∈ clause.vars [a, b, c],
+      from mem_vars_of_mem_clause ha_in,
+    have hbv_in : b.var ∈ clause.vars [a, b, c],
+      from mem_vars_of_mem_clause hb_in,
+    have hcv_in : c.var ∈ clause.vars [a, b, c],
+      from mem_vars_of_mem_clause hc_in,
+
+    rw [c_to_app, eval_xor_cnf_eq_eval_xor_gate, xor_gate.eval_append] at h,
+    
+    --have ihred := ih (L ++ [Pos (f 0)]) (dropn_len _ three_gt_one (not_le.mp hlen)) 
+    --  (restriction_injective hinj) (res_disjoint hinj him),
+
+    cases h3eval : xor_gate.eval α [a, b, c],
+    { simp [h3eval] at h,
+      have heval : literal.eval (set_var α (f 0) ff) (Pos (f 0)) = ff,
+      { simp [literal.eval, set_var] },
+
+      have hf0_not_mem : (f 0) ∉ clause.vars L,
+      { simp at him,
+        rw c_to_app at him,
+        intro h,
+        exact (him 0) ((vars_append_subset_right _ _) h) },
+
+      have hf0_not_mem2 : (f 0) ∉ clause.vars [a, b, c],
+      { simp at him,
+        rw c_to_app at him,
+        intro h,
+        exact (him 0) ((vars_append_subset_left _ _) h) },
+
+      have hf0_mem : (f 0) ∈ clause.vars (L ++ [Pos (f 0)]),
+      { have : f 0 ∈ clause.vars [Pos (f 0)],
+          by simp [clause.vars, literal.var],
+        exact (vars_append_subset_right L _) this },
+
+      have : cnf.eval (set_var α (f 0) ff) (xor_cnf (L ++ [Pos (f 0)])) = tt,
+      { rw eval_xor_cnf_eq_eval_xor_gate,
+        rw xor_gate.eval_append,
+        simp [literal.eval, heval],
+        have : α ≡[clause.vars L]≡ (set_var α (f 0) ff),
+          from eqod_set_var_of_not_mem α (f 0) ff (clause.vars L) hf0_not_mem,
+        rw ← equiv_on_domain_for_xor this,
+        exact h },
+      
+      have ihred := ih (L ++ [Pos (f 0)]) (dropn_len _ three_gt_one (not_le.mp hlen))
+        (set_var α (f 0) ff)
+        (restriction_injective hinj) (res_disjoint hinj him) this,
+      
+      rcases ihred with ⟨α₂, ha₂, heqod⟩,
+      use (assignment.ite α α₂ (clause.vars [a, b, c])),
+      split,
+      {
+        split,
+        { have : [a, b, c, Neg (f 0)] = [a, b, c] ++ [Neg (f 0)], simp,
+          rw [this, eval_xor_cnf_eq_eval_xor_gate, xor_gate.eval_append],
+          rw xor_gate.eval_singleton,
+          simp [xor_gate.eval_cons, literal.eval],
+          rw ite_pos_of_lit _ _ hav_in, -- This is overly manual...
+          rw ite_pos_of_lit _ _ hbv_in,
+          rw ite_pos_of_lit _ _ hcv_in,
+          rw ite_neg _ _ hf0_not_mem2,
+          rw ← heqod (f 0) hf0_mem,
+          simp [set_var],
+          rw ← bxor_tt_right (literal.eval α c),
+          simp only [← bool.bxor_assoc],
+          rw bxor_tt_right,
+          simp [xor_gate.eval_cons] at h3eval,
+          simp [h3eval] },
+        {
+          -- Theorems on variables, subsets, etc.
+          sorry,
+        } },
+      { intros v hv,
+        unfold assignment.ite,
+        rw c_to_app at hv,
+        rcases exists_mem_clause_of_mem_vars hv with ⟨lit, hlit, rfl⟩,
+        rcases mem_append.mp hlit with hl | hl,
+        { simp [mem_vars_of_mem_clause hl] },
+        { have hsetvar := heqod lit.var (mem_vars_of_mem_clause (mem_append_left [Pos (f 0)] hl)),
+          unfold set_var at hsetvar,
+          have := mem_vars_of_mem_clause hl,
+          have := ne_of_mem_of_not_mem this hf0_not_mem,
+          simp [this] at hsetvar,
+          simp [hsetvar] } } },
+    { -- symmetric to other case
+      sorry,
+    } }
+end
+
+theorem backward (l : list (literal V)) {f : nat → V} (hinj : injective f)
+  (him : ∀ v ∈ set.range f, v ∉ (clause.vars l)) :
+  (∃ (α : assignment V), cnf.eval α (xor_cnf l) = tt) → 
+  ∃ (α₂ : assignment V), cnf.eval α₂ (txor3 l f hinj him) = tt :=
 begin
   rintros ⟨α, ha⟩,
-  
+  rcases stronger l α hinj him ha with ⟨α₂, ha₂, _⟩,
+  use [α₂, ha₂]
 end
 
-
-lemma exists_xor_cnf_of_tseitin {f : nat → V} (hf : injective f)
-  {g : V → nat} (hg : injective g) (hfg : right_inverse f g) 
-  {l : list (literal V)} :
-  (∃ (α : assignment V), cnf.eval α (xor_cnf l) = tt) → 
-   ∃ (α₂ : assignment V), cnf.eval α₂ (tseitin_xor3 hf hg hfg l) = tt :=
+theorem stronger_forward (l : list (literal V)) (α : assignment V)
+  {f : nat → V} (hinj : injective f)
+  (him : ∀ v ∈ set.range f, v ∉ (clause.vars l)) :
+  cnf.eval α (txor3 l f hinj him) = tt →
+  ∃ (α₂ : assignment V), cnf.eval α₂ (xor_cnf l) = tt ∧
+  (α ≡[clause.vars l]≡ α₂) :=
 begin
+  induction l using strong_induction_on_lists with l ih generalizing f,
+  by_cases hlen : length l ≤ 3,
+  { rw txor3_eq_xor_cnf_of_len_le_three hinj him hlen,
+    intro h, use [α, h] },
+  { rcases exists_three (not_le.mp hlen) with ⟨a, b, c, L, rfl⟩,
+    unfold txor3,
+    simp [hlen, cnf.eval_append],
+    intros h₁ h₂,
 
-end
+    have ihred := ih (L ++ [Pos (f 0)]) (dropn_len _ three_gt_one (not_le.mp hlen))
+      (restriction_injective hinj) (res_disjoint hinj him) h₂,
+    
+    rcases ihred with ⟨α₂, ha₂, heqod⟩,
+    use α,
+    split,
+    { have c_to_app : a :: b :: c :: L = [a, b, c] ++ L, simp,
+      rw c_to_app,
+      have : f 0 ∈ clause.vars ([Pos (f 0)]),
+        by simp [literal.var],
+      have hf0_mem := (vars_append_subset_right L [Pos (f 0)]) this,
+      have hf0_eval := heqod (f 0) hf0_mem,
 
+      have heqod₂ := eqod_subset_of_eqod (vars_append_subset_left L ([Pos (f 0)])) heqod,
 
-noncomputable def tseitin_xor3 {f : V → nat} (hf : bijective f) : list (literal V) → list V → cnf V
-| [] _ := [[]]
-| l vs := if h : length l ≤ 3 then xor_cnf l else
-    have exi : ∃ (v : V), v ∉ vs, from exists_not_mem_of_bijection hf vs,
-    have length (l.drop 3 ++ [Pos (classical.some exi)]) < length l,
-      from (dropn_len _ three_gt_one (not_le.mp h)),
-    xor_cnf (l.take 3 ++ [Neg (classical.some exi)]) ++ 
-      (tseitin_xor3 (l.drop 3 ++ [Pos (classical.some exi)]) ((classical.some exi) :: vs))
-using_well_founded {
-  rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ.1)⟩],
-  dec_tac := tactic.assumption
-}
-/-
-(∃ (α : assignment V), cnf.eval α (xor_cnf l) = tt) →
-  ∃ (α₂ : assignment V), eval α₂ l = tt :=
--/
-
-/-
-/-
-It is noncomputable because pulling a variable from the witness in an exists hypothesis
-is not non-classical. In the future, attempt to use gensym in place of the ∃hyp.
--/
-
-
-lemma empty_intersect_of_empty_intersect {l : list (literal V)} {g : gensym V} :
-  ∀ (l₂ : list (literal V)), l₂ ⊆ l → (∀ (n : nat), clause.vars l ∩ (g.nfresh n).1 = []) →
-  ∀ (m : nat), clause.vars l₂ ++ [g.fresh.1] ∩ (g.fresh.2.nfresh m).1 = [] :=
-begin
-  induction l with l ls ih,
-  { intros l₂ hl₂ hn m,
-    have := eq_nil_of_subset_nil hl₂,
-    rw this,
-    simp,
-    cases m,
-    { simp [gensym.nfresh] },
-    {
-      
-    }
-  }
-end
-
-def tx3 : Π (l : list (literal V)), Π (g : gensym V),
-          (∀ n : nat, clause.vars l ∩ (g.nfresh n).1 = []) → cnf V
-| l g p := if h : length l ≤ 3 then xor_cnf l else
-          let ⟨v, g₂⟩ := gensym.fresh g in
-          xor_cnf (l.take 3 ++ [Neg v]) ++ (tx3 (l.drop 3 ++ [Pos v]) g₂ p)
-
-/-
-def tx3_helper : list (literal V) × gensym (literal V) → cnf V 
-| ⟨[], _⟩ := [[]]
-| ⟨l, g⟩  := if h : length l ≤ 3 then xor_cnf l else
-    let ⟨v, g2⟩ := gensym.fresh g in
-    have length (l.drop 3 ++ [set_pos v]) < length l,
-      from (dropn_len _ three_gt_one (not_le.mp h)),
-    xor_cnf (l.take 3 ++ [set_neg v]) ++ (tx3_helper ⟨(l.drop 3 ++ [set_pos v]), g2⟩)
-using_well_founded {
-  rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ.1)⟩],
-  dec_tac := tactic.assumption
-}
-
-def tx3 {f : nat → (literal V)} (hf : injective f) (n : nat) : cnf V :=
-  tx3_helper (gensym.nfresh (gensym.init hf) n)
-
-lemma tx3_base_case {f : nat → (literal V)} (hf : injective f) {n : nat} :
-  n ≤ 3 → cnf.equisatisfiable (tx3 hf n) (xor_cnf (gensym.nfresh (gensym.init hf) n).1) :=
-begin
-  intro h,
-  cases n,
-  { simp [gensym.nfresh, tx3, tx3_helper] },
-  { simp [tx3],
-    rw gensym.nfresh_succ_eq_nfresh_fresh (gensym.init hf),
-    unfold tx3_helper,
-    simp [h, gensym.length_list_nfresh] }
-end
-
-theorem tx3_correct {f : nat → (literal V)} (hf : injective f) (n : nat) :
-  cnf.equisatisfiable (tx3 hf n) (xor_cnf (gensym.nfresh (gensym.init hf) n).1) :=
-begin
-  unfold tx3,
-  induction n using nat.case_strong_induction_on with n ih,
-  { simp [tx3, tx3_helper, gensym.nfresh] },
-  { simp at ih,
-    by_cases h : n.succ ≤ 3,
-    { exact tx3_base_case hf h },
-    { 
-
-      rw gensym.nfresh_succ_eq_nfresh_fresh (gensym.init hf),
-      unfold tx3_helper,
-      simp [h, gensym.length_list_nfresh],
-
-    }
-  }
-  /-
-  by_cases h : n ≤ 3,
-  { exact tx3_base_case hf h },
-  { cases n,
-    { simp at h, contradiction },
-    {
-      simp [tx3],
-      rw gensym.nfresh_succ_eq_nfresh_fresh (gensym.init hf),
-      unfold tx3_helper,
-      simp [h, gensym.length_list_nfresh],
-      split,
-      { sorry, },
+      rw eval_xor_cnf_eq_eval_xor_gate,
+      rw eval_xor_cnf_eq_eval_xor_gate at h₁,
+      rw eval_xor_cnf_eq_eval_xor_gate at ha₂,
+      rw xor_gate.eval_append,
+      rw xor_gate.eval_append at ha₂,
+      cases heval : α₂ (f 0),
+      { simp [literal.eval, heval] at ha₂,
+        simp only [xor_gate.eval_cons, literal.eval, heval, hf0_eval] at h₁,
+        rw xor_gate.eval_nil at h₁,
+        rw bool.bxor_ff_right at h₁,
+        simp only [← bool.bxor_assoc] at h₁, -- clean up manual
+        rw bool.bnot_false at h₁,
+        rw bxor_tt_right at h₁,
+        simp at h₁,
+        rw equiv_on_domain_for_xor heqod₂,
+        simp [ha₂, xor_gate.eval_cons, h₁] },
       {
-        rintros ⟨α, ha⟩,
+        simp [literal.eval, heval] at ha₂,
+        simp only [xor_gate.eval_cons, literal.eval, heval, hf0_eval] at h₁,
+        rw xor_gate.eval_nil at h₁,
+        rw bool.bxor_ff_right at h₁,
+        simp only [← bool.bxor_assoc] at h₁, -- clean up manual
+        rw bool.bnot_true at h₁,
+        rw bool.bxor_ff_right at h₁,
+        simp at h₁,
+        rw equiv_on_domain_for_xor heqod₂,
+        simp [ha₂, xor_gate.eval_cons, h₁] } },
+    { exact eqod.refl α _ } }
+end
+
+theorem forward (l : list (literal V)) {f : nat → V} (hinj : injective f)
+  (him : ∀ v ∈ set.range f, v ∉ (clause.vars l)) :
+ (∃ (α : assignment V), cnf.eval α (txor3 l f hinj him) = tt) → 
+  ∃ (α₂ : assignment V), cnf.eval α₂ (xor_cnf l) = tt :=
+begin
+  rintros ⟨α, ha⟩,
+  rcases stronger_forward l α hinj him ha with ⟨α₂, ha₂, _⟩,
+  use [α₂, ha₂]
+end
+
+
+/-
+theorem forward (l : list (literal V)) {f : nat → V} (hinj : injective f)
+  (him : ∀ v ∈ set.range f, v ∉ (clause.vars l)) :
+  (∃ (α : assignment V), cnf.eval α (txor3 l f hinj him) = tt) →
+  ∃ (α₂ : assignment V), cnf.eval α₂ (xor_cnf l) = tt :=
+begin
+    have hperm : [Neg (f 0), a, b, c] ~ [a, b, c, Neg (f 0)],
+      { have p1 := perm.cons b (perm.swap c (Neg (f 0)) []),
+        have p2 := perm.swap b (Neg (f 0)) [c],
+        have p3 := perm.trans p2 p1,
+        have p4 := perm.cons a p3,
+        have p5 := perm.swap a (Neg (f 0)) [b, c],
+        exact perm.trans p5 p4 },
+
+    cases heval0 : α₂ (f 0),
+    {
+      rw eval_xor_cnf_eq_eval_xor_gate (L ++ [Pos (f 0)]) α₂ at ha₂,
+      rw (eval_eq_of_perm α₂ (perm_append_singleton (Pos (f 0)) L)) at ha₂,
+      rw xor_gate.eval_cons at ha₂,
+      simp [heval0, literal.eval] at ha₂,
+    }
+  }
+  { simp [txor3] },
+  {
+    by_cases h : length (l :: ls) ≤ 3,
+    { unfold txor3,
+      simp [h],
+      intros α ha,
+      use [α, ha] },
+    {
+      rcases exists_three (not_le.mp h) with ⟨a, b, c, L, hls⟩,
+      rcases head_eq_of_cons_eq hls with rfl,
+      rcases tail_eq_of_cons_eq hls with rfl,
+      simp [add_assoc] at h,
+      rintros ⟨α, ha⟩,
+      unfold txor3 at ha,
+      simp [add_assoc, h, eval_append] at ha,
+      rcases ha with ⟨h₁, h₂⟩,
+
+      -- Reduction of induction hypothesis
+      have hinjr := restriction_injective hinj,
+      have himr := res_disjoint hinj him,
+
+      rw eval_xor_cnf_eq_eval_xor_gate at h₁,
+      rw h₁ at this,
+      rw xor_gate.eval_cons at this,
+      cases hf : α (f 0),
+      {
+        simp [literal.eval, hf] at this,
 
       }
     }
-    -/
   }
-end
-/-
-lemma tseitin_base_case {f : V → nat} (hf : bijective f) {l : list (literal V)} : 
-  length l ≤ 3 → cnf.equisatisfiable (tseitin_xor3 hf l (clause.vars l)) (xor_cnf l) :=
-begin
-  intro h,
-  cases l,
-  { simp [tseitin_xor3, xor_cnf] },
-  { unfold tseitin_xor3, simp [h] }
-end
 
-theorem equisatisfiable_tseitin_xor3 {f : V → nat} (hf : bijective f) (l : list (literal V)) :
-  assignment.equisatisfiable (λ α, cnf.eval α (tseitin_xor3 hf l (clause.vars l)))
-                             (λ α, cnf.eval α (xor_cnf l)) :=
-begin
-  cases l,
-  { simp [tseitin_xor3, xor_cnf], 
-    split;
-    { rintros ⟨α, ha⟩,
-      simp at ha,
-      contradiction } },
-  { by_cases h : (length (l_hd :: l_tl) ≤ 3),
-    { split,
-      { rintros ⟨α, ha⟩,
-        unfold tseitin_xor3 at ha,
-        simp [h] at ha,
-        use [α, ha] },
-      { rintros ⟨α, ha⟩,
-        simp at ha,
-        unfold tseitin_xor3,
-        use [α],
-        simp [h, ha] } },
-    { split,
-      { rintros ⟨α, ha⟩,
-        unfold tseitin_xor3 at ha,
-        simp [h] at ha,
-
-      }
-
-    }
-  }
-end
-
--- We start with the instance of pooling number n = 3
--- The n provided is the greatest element in l, so that new variables can be created
--- The well_founded had to be used because of the growing n variable
--- Unfold didn't work until I provided a nil case - intentional?
-/-
-def tseitin_xor3 : list literal → nat → cnf
-| [] _ := [[]]
-| l n := 
-    if h : length l ≤ 3 then xor_cnf l
-    else
-      have length (l.drop 3 ++ [Pos (n + 1)]) < length l, 
-        from (dropn_len (nat.succ 0).one_lt_succ_succ (not_le.mp h)),
-      xor_cnf (l.take 3 ++ [Neg (n + 1)]) ++ (tseitin_xor3 (l.drop 3 ++ [Pos (n + 1)]) (n + 1))
-using_well_founded {
-  rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ.fst)⟩],
-  dec_tac := tactic.assumption
-}
-
-lemma tseitin_xor3_base_case {ls : list literal} (n : nat) (h : length ls ≤ 3) :
-  tseitin_xor3 ls n = xor_cnf ls :=
-begin
-  cases ls,
-  { simp [tseitin_xor3, xor_cnf] },
-  { unfold tseitin_xor3, simp [h] }
-end
-
-α : assignment, ls, ∃ a₂ cnf.eval α (tseitn ls)
-
-∀ α, ∃ a₂ s.t. cnf α (xor_cnf ls) = tt → cnf α₂ (tseitn ls) = tt
-            (cnf α (xor_cnf ls) = cnf α₂ (xor_cnf ls) by equiv on domain?)
-               cnf α (xor_cnf ls) = cnf α₂ (tseitin ls)
-
-∀ α, ∃ a₂ st. cnf α (tseitin ls) = tt → cnf α₂ (xor_cnf ls) = tt
-                cnf α₂ (xor_cnf ls) = ff → cnf α (tseitn ls) = ff
-
-theorem tseitin_xor3_correct : ∀ (α : assignment), ∀ (ls : list literal), ∀ (n : nat),
-  n = max_var ls → ∃ (α₂ : assignment) 
-  (H : α ≡[vars ls]≡ α₂),
-  cnf.eval α₂ (xor_cnf ls) = cnf.eval α₂ (tseitin_xor3 ls n)
-| α [] n hmax := begin
-  use α, simp [xor_cnf, tseitin_xor3]
-end
-| α [l] n hmax := begin
-  use α, split, { exact eqod.refl α (vars [l]) },
-  { have hlen : length [l] = 1, simp [length],
-    rw tseitin_xor3_base_case n (eq.trans_le hlen (nat.one_le_bit1 1)) }
-end
-| α (l₁ :: [l₂]) n hmax := begin
-  use α, split, { exact eqod.refl α _ },
-  { have hlen : length (l₁ :: [l₂]) = 2, simp [length],
-    rw tseitin_xor3_base_case n (eq.trans_le hlen (nat.le_succ 2)) }
-end
-| α (l₁ :: l₂ :: [l₃]) n hmax := begin
-  use α, split, { exact eqod.refl α _ },
-  { have hlen : length (l₁ :: l₂ :: [l₃]) = 3, simp [length],
-    rw tseitin_xor3_base_case n (eq.symm hlen).ge }
-end
-| α (l₁ :: l₂ :: l₃ :: l₄ :: l) n hmax := begin
-
-  have pos_not_mem : Pos (n + 1) ∉ (l₁ :: l₂ :: l₃ :: l₄ :: l),
-    { have hg : n + 1 > n, from lt_add_one n,
-      have : (Pos (n + 1)).var = n + 1, simp [var],
-      rw ← this at hg,
-      rw hmax at hg,
-      have := not_mem_of_gt_max_var hg,
-      rw ← hmax at this,
-      exact this },
-  have neg_not_mem : Neg (n + 1) ∉ (l₁ :: l₂ :: l₃ :: l₄ :: l),
-    { have hg : n + 1 > n, from lt_add_one n,
-      have : (Neg (n + 1)).var = n + 1, simp [var],
-      rw ← this at hg,
-      rw hmax at hg,
-      have := not_mem_of_gt_max_var hg,
-      rw ← hmax at this,
-      exact this },
-  have nsucc_not_mem_map_var : n + 1 ∉ map var (l₁ :: l₂ :: l₃ :: l₄ :: l),
-  { apply not_mem_map_var_of_gt_max_var2,
-    rw hmax, exact lt_add_one _ },
-  have nsucc_not_mem : n + 1 ∉ vars (l₁ :: l₂ :: l₃ :: l₄ :: l),
-    from not_mem_vars_iff_not_mem_map_vars.mp nsucc_not_mem_map_var,
-  
-  -- We want to call the IH on the smaller list - say it's a sublist to get nodup
-  have hsublist : map var (l₄ :: l) <+ map var (l₁ :: l₂ :: l₃ :: l₄ :: l),
-    simp [sublist.cons],
-  have nsucc_not_mem_sublist_map_var : n + 1 ∉ map var (l₄ :: l),
-    from not_mem_of_sublist_of_not_mem nsucc_not_mem_map_var hsublist,
-
-  have dis : disjoint (map var (l₁ :: l₂ :: l₃ :: l₄ :: l)) [n + 1],
-    { apply disjoint_right.mpr,
-      intros a ha,
-      rw eq_of_mem_singleton ha,
-      exact nsucc_not_mem_map_var },
-  have dis2 : disjoint (map var (l₄ :: l)) [n + 1],
-    { apply disjoint_right.mpr,
-      intros a ha,
-      rw eq_of_mem_singleton ha,
-      exact nsucc_not_mem_sublist_map_var },
-  have hnewmax : n + 1 = max_var ((l₁ :: l₂ :: l₃ :: l₄ :: l) ++ [Pos (n + 1)]),
-    { rw max_var_append,
-      rw ← hmax,
-      simp [max_var_singleton, var] },
-  have hnewmax2 : n + 1 = max_var (l₄ :: l ++ [Pos (n + 1)]),
-  { have hsl : l₄ :: l <+ l₁ :: l₂ :: l₃ :: l₄ :: l, simp [sublist.cons],
-    have hgt : max_var [Pos (n + 1)] > max_var (l₁ :: l₂ :: l₃ :: l₄ :: l),
-      { simp [max_var_singleton, ← hmax, var] },
-    have := max_var_sublist_append hsl hgt,
-    simp [max_var_singleton, var] at this,
-    exact this.symm },
-  have hlen : (l₁ :: l₂ :: l₃ :: l₄ :: l).length > 3,
-    simp [length, nat.lt_add_left 3 4 (length l) (nat.lt.base 3)],
-
-  cases h123 : (xor_gate.eval α (l₁ :: l₂ :: [l₃])),
-  { have hextend := exists_extended_assignment_of_assignment α nsucc_not_mem ff,
-    rcases hextend with ⟨α₂, hequiv, hff⟩,
-    --unfold tseitin_xor3,
-    --simp [not_le.mpr hlen],
-    rcases tseitin_xor3_correct α₂ ((l₄ :: l) ++ [Pos (n + 1)]) (n + 1) hnewmax2 with ⟨a3, ha3, h3eq⟩,
-    have hnewa : α ≡[vars (l₁ :: l₂ :: l₃ :: l₄ :: l)]≡ (λ v, if v ∈ vars (l₁ :: l₂ :: l₃ :: l₄ :: l) then α v else a3 v),
-      { intros v hv, simp [hv] },
-    use [(λ v, if v ∈ vars (l₁ :: l₂ :: l₃ :: l₄ :: l) then α v else a3 v), hnewa],
-    
-    have : cnf.vars (xor_cnf (l₁ :: l₂ :: l₃ :: l₄ :: l)) ⊆ vars (l₁ :: l₂ :: l₃ :: l₄ :: l),
-    { have : l₁ :: l₂ :: l₃ :: l₄ :: l ≠ [], simp,
-      exact subset.trans (vars_cnf_subset_xor this) (map_var_subset_of_vars (l₁ :: l₂ :: l₃ :: l₄ :: l)) },
-
-    have : α ≡[cnf.vars (xor_cnf (l₁ :: l₂ :: l₃ :: l₄ :: l))]≡ (λ v, if v ∈ vars (l₁ :: l₂ :: l₃ :: l₄ :: l) then α v else a3 v),
-      from eqod_subset_of_eqod this hnewa,
-
-    rw ← eval_eq_of_equiv_on_domain_vars this,
-    unfold tseitin_xor3,
-    simp [not_le.mpr hlen],
-    rw eval_append,
-
-    --have : cnf.eval (λ v, ite (v ∈ vars (l₁ :: l₂ :: l₃ :: l₄ :: l) (α v) (a3 v))) (xor_cnf (l₁ :: l₂ :: l₃ :: l₄ ))
-    --rw eval_append,
-      
-    --rw xor_cnf_correct α₂ (l₁ :: l₂ :: l₃ :: l₄ :: l),
-   -- rw xor_cnf_correct α₂ [l₁, l₂, l₃, Neg (n + 1)],
-
-    have : cnf.vars (xor_cnf (l₄ :: l ++ [Pos (n + 1)])) ⊆ clause.vars (l₄ :: l ++ [Pos (n + 1)]),
-    { have : (l₄ :: l ++ [Pos (n + 1)]) ≠ [], simp,
-      have h : map var (l₄ :: l ++ [Pos (n + 1)]) ⊆ clause.vars (l₄ :: l ++ [Pos (n + 1)]),
-        from map_var_subset_of_vars (l₄ :: l ++ [Pos (n + 1)]),
-      exact subset.trans (vars_cnf_subset_xor this) h },
-    
-    have h3equivnew : α₂ ≡[cnf.vars (xor_cnf (l₄ :: l ++ [Pos (n + 1)]))]≡ a₃,
-      from eqod_subset_of_eqod this h3equiv,
-
-    have evala3 : cnf.eval α₂ (xor_cnf (l₄ :: l ++ [Pos (n + 1)])) = cnf.eval a₃ (xor_cnf (l₄ :: l ++ [Pos (n + 1)])),
-      from eval_eq_of_equiv_on_domain_vars h3equivnew,
-    }
-  }
-end
--/
--/
--/
 -/
 
 end tseitin_xor

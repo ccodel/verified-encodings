@@ -126,6 +126,52 @@ begin
   { intros n ha hb, contradiction }
 end
 
+/-! # ite -/
+-- A process by which membership of one set uses assignment 1, else assignment 2
+
+protected def ite (α₁ α₂ : assignment V) (l : list V) : assignment V :=
+  λ v, if v ∈ l then α₁ v else α₂ v
+
+@[simp] theorem ite_nil (α₁ α₂ : assignment V) : 
+  ∀ (v : V), (assignment.ite α₁ α₂ []) v = α₂ v :=
+assume v, by simp [assignment.ite]
+
+theorem ite_pos (α₁ α₂ : assignment V) {l : list V} {v : V} :
+  v ∈ l → (assignment.ite α₁ α₂ l) v = α₁ v :=
+assume h, by simp [assignment.ite, h]
+
+theorem ite_neg (α₁ α₂ : assignment V) {l : list V} {v : V} :
+  v ∉ l → (assignment.ite α₁ α₂ l) v = α₂ v :=
+assume h, by simp [assignment.ite, h]
+
+theorem ite_pos_of_lit (α₁ α₂ : assignment V) {l : list V} {lit : literal V} :
+  lit.var ∈ l → literal.eval (assignment.ite α₁ α₂ l) lit = literal.eval α₁ lit :=
+begin
+  cases lit,
+  { simp [literal.var, literal.eval], exact ite_pos α₁ α₂ },
+  { simp [literal.var, literal.eval],
+    assume h,
+    rw ite_pos α₁ α₂ h }
+end
+
+theorem ite_neg_of_lit (α₁ α₂ : assignment V) {l : list V} {lit : literal V} :
+  lit.var ∉ l → literal.eval (assignment.ite α₁ α₂ l) lit = literal.eval α₂ lit :=
+begin
+  cases lit,
+  { simp [literal.var, literal.eval], exact ite_neg α₁ α₂ },
+  { simp [literal.var, literal.eval],
+    assume h,
+    rw ite_neg α₁ α₂ h }
+end
+
+theorem eqod_ite_of_disjoint (α₁ α₂ : assignment V) {l₁ l₂ : list V} :
+  disjoint l₁ l₂ → α₂ ≡[l₂]≡ (assignment.ite α₁ α₂ l₁) :=
+assume h v hv, by simp [assignment.ite, disjoint_right.mp h hv]
+
+theorem eqod_ite_of_subset (α₁ α₂ : assignment V) {l₁ l₂ : list V} :
+  l₂ ⊆ l₁ → α₁ ≡[l₂]≡ (assignment.ite α₁ α₂ l₁) :=
+assume h v hv, by simp [assignment.ite, h hv]
+
 /-! # Miscellaneous -/
 
 -- Constant function assignments
@@ -142,12 +188,21 @@ def set_var [decidable_eq V] (α : assignment V) (v : V) (b : bool) : assignment
 def flip_var [decidable_eq V] (α : assignment V) (v : V) : assignment V :=
   λ x, if x = v then bnot (α v) else α x
 
-theorem eval_eq_of_set_var [decidable_eq V] {α : assignment V} {v : V} {b : bool} : 
+theorem eval_eq_of_set_var {α : assignment V} {v : V} {b : bool} : 
   (set_var α v b) v = b :=
 by simp [set_var]
 
-theorem eval_ne_of_flip_var [decidable_eq V] {α : assignment V} {v : V} :
+theorem eval_ne_of_flip_var {α : assignment V} {v : V} :
   α v = bnot ((flip_var α v) v) :=
 by simp [flip_var]
+
+theorem eqod_set_var_of_not_mem (α : assignment V) (v : V) (b : bool) :
+  ∀ (l : list V), v ∉ l → (α ≡[l]≡ (set_var α v b)) :=
+begin
+  intros l h,
+  unfold set_var,
+  intros z hz,
+  simp [ne_of_mem_of_not_mem hz h]
+end
 
 end assignment

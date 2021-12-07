@@ -644,7 +644,7 @@ assume hc hcount, eval_tt_of_neq_counts hc (ne_of_apply_ne nat.bodd hcount)
 -- variable in that clause will evaluate to true
 -- Shorten without much cases? Develop new tactic for symmetric casework?
 theorem eval_tt_of_neq_flips {α : assignment V} {c₁ : clause V} :
-  ∀ (c₂ : clause V), map var c₁ = map var c₂ → count_tt α c₁ ≠ count_flips c₁ c₂ → clause.eval α c₂ = tt :=
+  ∀ {c₂ : clause V}, map var c₁ = map var c₂ → count_tt α c₁ ≠ count_flips c₁ c₂ → clause.eval α c₂ = tt :=
 begin
   induction c₁ with l ls ih,
   { simp },
@@ -665,7 +665,7 @@ begin
           { simp [h, bool.to_nat, literal.eval, count_flips, literal.flip, hn] at hcount,
             contradiction } } } },
     { rcases exists_map_cons_of_map_cons hc₂.symm with ⟨m, ms, rfl, hm, hms⟩,
-      have ihred := ih ms hms.symm,
+      have ihred := ih hms.symm,
       cases h : (literal.eval α m),
       { by_cases he : l = m; rw count_tt_cons at hcount,
         { simp [h, he, count_flips_cons, bool.to_nat] at hcount,
@@ -734,9 +734,17 @@ begin
         use m, simp [hm, hms] } } }
 end
 
-theorem vars_subset_of_vars_cons (c : clause V) (l : literal V) :
+theorem vars_subset_of_vars_cons (l : literal V) (c : clause V) :
   clause.vars c ⊆ clause.vars (l :: c) :=
 by { by_cases (l ∈ c ∨ l.flip ∈ c); simp [clause.vars, h] }
+
+theorem vars_subset_of_subset {c₁ c₂ : clause V} :
+  c₁ ⊆ c₂ → clause.vars c₁ ⊆ clause.vars c₂ :=
+begin
+  intros h v hv,
+  rcases exists_mem_clause_of_mem_vars hv with ⟨l, hl, rfl⟩,
+  exact mem_vars_of_mem_clause (h hl)
+end
 
 -- Unsurprisingly, (map var c) and vars c are equivalent from a set perspective
 theorem vars_subset_of_map_var : ∀ (c : clause V), clause.vars c ⊆ map var c
@@ -813,31 +821,72 @@ begin
       { exact not_mem_vars_of_pos_not_mem_neg_not_mem h2 h1 } } }
 end
 
--- Can pick a var not in the clause with a bijective mapping to the naturals
--- Just pick the next largest one
-theorem exists_not_mem_of_bijection {f : V → nat} (hf : bijective f) (l : list V) :
-  ∃ (v : V), v ∉ l :=
+theorem vars_append_subset_left (c₁ c₂ : clause V) :
+  clause.vars c₁ ⊆ clause.vars (c₁ ++ c₂) :=
 begin
-  cases l,
-  { use [(arbitrary V), not_mem_nil _] },
-  { have : foldr max 0 (map f (l_hd :: l_tl)) + 1 > foldr max 0 (map f (l_hd :: l_tl)),
-      from lt_add_one _,
-    rcases exists_not_mem_of_gt_max hf this with ⟨v, heq, hv⟩,
-    use [v, hv] }
+  intros v hv,
+  rcases mem_vars_iff_pos_or_neg_mem_clause.mp hv with hv | hv,
+  { have := mem_vars_of_mem_clause (mem_append_left _ hv),
+    unfold var at this,
+    assumption },
+  { have := mem_vars_of_mem_clause (mem_append_left _ hv),
+    unfold var at this,
+    assumption }
 end
 
--- Corollary, just mapped back to a clause
-theorem exists_not_mem_clause_of_bijection {f : V → nat} (hf : bijective f) (c : clause V) :
-  ∃ (v : V), (Pos v) ∉ c ∧ (Neg v) ∉ c :=
+theorem vars_append_subset_right (c₁ c₂ : clause V) :
+  clause.vars c₂ ⊆ clause.vars (c₁ ++ c₂) :=
 begin
-  rcases exists_not_mem_of_bijection hf (map var c) with ⟨v, hv⟩,
-  use [v, pos_and_neg_not_mem_of_not_mem_vars 
-    (not_mem_vars_iff_not_mem_map_vars.mp hv)]
+  intros v hv,
+  rcases mem_vars_iff_pos_or_neg_mem_clause.mp hv with hv | hv,
+  { have := mem_vars_of_mem_clause (mem_append_right _ hv),
+    unfold var at this,
+    assumption },
+  { have := mem_vars_of_mem_clause (mem_append_right _ hv),
+    unfold var at this,
+    assumption }
 end
 
-theorem exists_not_mem_vars_of_bijection {f : V → nat} (hf : bijective f) (c : clause V) :
-  ∃ (v : V), v ∉ (clause.vars c) :=
-exists_not_mem_of_bijection hf (clause.vars c)
+theorem mem_vars_append_left {v : V} {c₁ : clause V} (c₂ : clause V) :
+  v ∈ clause.vars c₁ → v ∈ clause.vars (c₁ ++ c₂) :=
+assume h, vars_append_subset_left c₁ c₂ h
+
+theorem mem_vars_append_right {v : V} (c₁ : clause V) {c₂ : clause V} :
+  v ∈ clause.vars c₂ → v ∈ clause.vars (c₁ ++ c₂) :=
+assume h, vars_append_subset_right c₁ c₂ h
+
+theorem mem_left_or_right_of_mem_vars_append {v : V} {c₁ c₂ : clause V} :
+  v ∈ clause.vars (c₁ ++ c₂) → (v ∈ clause.vars c₁) ∨ (v ∈ clause.vars c₂) :=
+begin
+  intro h,
+  rcases exists_mem_clause_of_mem_vars h with ⟨l, hl, rfl⟩,
+  rcases mem_append.mp hl with hl | hl;
+  { simp [mem_vars_of_mem_clause hl] }
+end
+
+theorem not_mem_vars_append_left {v : V} {c₁ c₂ : clause V} :
+  v ∉ clause.vars (c₁ ++ c₂) → v ∉ clause.vars c₁ :=
+begin
+  contrapose,
+  simp,
+  exact mem_vars_append_left c₂
+end
+
+theorem not_mem_vars_append_right {v : V} {c₁ c₂ : clause V} :
+  v ∉ clause.vars (c₁ ++ c₂) → v ∉ clause.vars c₂ :=
+begin
+  contrapose,
+  simp,
+  exact mem_vars_append_right c₁
+end
+
+theorem not_mem_vars_append_of_not_mem_of_not_mem {v : V} {c₁ c₂ : clause V} :
+  v ∉ clause.vars c₁ → v ∉ clause.vars c₂ → v ∉ clause.vars (c₁ ++ c₂) :=
+begin
+  intros h₁ h₂ hcon,
+  rcases mem_left_or_right_of_mem_vars_append hcon with hv | hv;
+  { contradiction }
+end
 
 end clause
 

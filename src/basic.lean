@@ -22,7 +22,7 @@ universes u v
 variables {α : Type u} {β : Type v}
 
 -- Define shorthand for XOR
-notation a ⊕ b := bxor a b
+notation a ` ⊕ ` b := bxor a b
 
 -- Some trivial, useful theorems
 @[simp] theorem bxor_tt_left  : ∀ a, bxor tt a = bnot a := dec_trivial
@@ -240,12 +240,6 @@ begin
       { exact h m },
       { exact hn m hm } } }
 end
-
-/-
-def infimum_of_bijective {f : nat → α} (f_bij : bijective f) : list α → α
-| []:= f 0
-| l := max_nat (map (λ a, ))
--/
 
 @[simp] theorem nil_inter [decidable_eq α] (l : list α) : l ∩ [] = [] :=
 eq_nil_of_subset_nil (inter_subset_right l [])
