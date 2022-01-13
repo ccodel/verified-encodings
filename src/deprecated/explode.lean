@@ -3,28 +3,20 @@ This file contains the definition of the "explode" operation, which
 creates a "powerset" of literals from a list of variables. Associated
 theorems dealing with the contents of explode are also included.
 
-Variables are general.
-
 Authors: Cayden Codel, Jeremy Avigad, Marijn Heule
 Carnegie Mellon University
 -/
 
-import cnf.literal_general
-import cnf.clause_general
-import cnf.cnf_general
+import cnf.literal
+import cnf.clause
+import cnf.cnf
 
 import data.nat.basic
 import data.nat.pow
 
-universe u
-
--- Represents the parametric type of the variable stored in the literal
-variables {V : Type u} [decidable_eq V] [inhabited V]
-
 open literal
 open clause
 open list
-open function
 
 /- Sometimes, it is necessary to get all possible disjunctive clauses from a set of variables -/
 /- For lack of a better name, we call that operation "exploding" -/
@@ -35,39 +27,40 @@ namespace explode
 
 /-! # Explode -/
 
-def explode : list V → list (clause V)
+def explode : list nat → list clause 
 | []        := [[]]
-| (v :: vs) := (explode vs).map (cons (Pos v)) ++ (explode vs).map (cons (Neg v))
+| (n :: ns) := (explode ns).map (cons (Pos n)) ++ (explode ns).map (cons (Neg n))
 
-@[simp] theorem explode_nil : explode ([] : list V) = [[]] := rfl
+@[simp] theorem explode_nil : explode [] = [[]] := rfl
 
-@[simp] theorem explode_singleton (v : V) : explode [v] = [[Pos v], [Neg v]] :=
+@[simp] theorem explode_singleton (n : nat) : explode [n] = [[Pos n], [Neg n]] :=
 by simp [explode]
 
-theorem length_explode : ∀ (l : list V), length (explode l) = 2^(length l)
+theorem length_explode : ∀ (l : list nat), length (explode l) = 2^(length l)
 | []        := rfl
-| (v :: vs) := by simp [explode, length_explode vs, pow_succ, two_mul]
+| (n :: ns) := by simp [explode, length_explode ns, pow_succ, two_mul]
 
-theorem length_explode_pos (l : list V) : length (explode l) > 0 :=
+theorem length_explode_pos (l : list nat) : length (explode l) > 0 :=
 by simp [length_explode]
 
-theorem exists_mem_explode (l : list V) : ∃ (c : clause V), c ∈ explode l :=
-exists_mem_of_length_pos (length_explode_pos _)
+theorem exists_mem_explode : ∀ (l : list nat), ∃ (c : clause), c ∈ explode l :=
+λ _, exists_mem_of_length_pos (length_explode_pos _)
 
-theorem length_eq_of_mem_explode {l : list V} : 
-  ∀ {c : clause V}, c ∈ explode l → length c = length l :=
+theorem length_eq_of_mem_explode {l : list nat} : 
+  ∀ c ∈ explode l, length c = length l :=
 begin
   induction l with n ns ih, { simp },
   { simp only [explode, mem_append, mem_map],
-    rintros c (⟨c, hc, rfl⟩ | ⟨c, hc, rfl⟩); simp [length, ih hc] }
+    rintros c (⟨c, hc, rfl⟩ | ⟨c, hc, rfl⟩); simp [length, ih c hc] }
 end
 
-theorem mem_explode_cons_of_mem_explode_of_lit {l : list V} (lit : literal V) : 
-  ∀ {c : clause V}, c ∈ explode l → (lit :: c) ∈ explode (lit.var :: l) :=
+theorem mem_explode_cons_of_mem_explode_of_lit {l : list nat} (lit : literal) : 
+  ∀ c ∈ explode l, (lit :: c) ∈ explode (lit.var :: l) :=
 assume c hc, by { cases lit; simp [explode, literal.var, hc] }
 
-lemma map_var_eq_of_mem_explode {l : list V} : 
-  ∀ {c : clause V}, c ∈ explode l → map var c = l :=
+-- Depends on the implementation of explode, but I think that's okay
+lemma map_var_eq_of_mem_explode {l : list nat} : 
+  ∀ {c : clause}, c ∈ explode l → map var c = l :=
 begin
   induction l with n ns ih,
   { simp },
@@ -76,8 +69,8 @@ begin
     { simp [var, map_cons, ih ha] } }
 end
 
-lemma mem_explode_of_map_var_eq {l : list V} : 
-  ∀ {c : clause V}, c.map var = l → c ∈ explode l :=
+lemma mem_explode_of_map_var_eq {l : list nat} : 
+  ∀ {c : clause}, c.map var = l → c ∈ explode l :=
 begin
   induction l with n ns ih,
   { simp },
@@ -88,14 +81,14 @@ begin
     { simp [explode], right, use ls, simp [ih hls] } }
 end
 
-theorem mem_explode_iff_map_var_eq {l : list V} {c : clause V} : 
+theorem mem_explode_iff_map_var_eq {l : list nat} {c : clause} : 
   c.map var = l ↔ c ∈ explode l :=
 ⟨mem_explode_of_map_var_eq, map_var_eq_of_mem_explode⟩
 
 -- Some way of compressing casework into a "repeat"?
 -- TODO think about pulling c, c ∈ explode into hypotheses to remove "of_mem_explode"
-lemma mem_clause_of_mem_of_mem_explode {l : list V} : 
-  ∀ {c : clause V}, c ∈ explode l → ∀ {v : V}, v ∈ l → Pos v ∈ c ∨ Neg v ∈ c :=
+lemma mem_clause_of_mem_of_mem_explode {l : list nat} : 
+  ∀ {c : clause}, c ∈ explode l → ∀ {n : nat}, n ∈ l → Pos n ∈ c ∨ Neg n ∈ c :=
 begin
   induction l with m ms ih,
   { simp },
@@ -110,8 +103,8 @@ begin
 end
 
 -- Reduce casework?
-lemma mem_of_mem_clause_of_mem_explode {l : list V} :
-  ∀ {c : clause V}, c ∈ explode l → ∀ {v : V}, Pos v ∈ c ∨ Neg v ∈ c → v ∈ l :=
+lemma mem_of_mem_clause_of_mem_explode {l : list nat} :
+  ∀ {c : clause}, c ∈ explode l → ∀ {n : nat}, Pos n ∈ c ∨ Neg n ∈ c → n ∈ l :=
 begin
   induction l with m ms ih,
   { simp },
@@ -139,14 +132,14 @@ begin
     { exact mem_cons_of_mem _ (ih ha (or.inr hn₂)) } }
 end
 
-theorem mem_iff_mem_clause_of_mem_explode {l : list V} :
-  ∀ {c : clause V}, c ∈ explode l → ∀ {v : V}, Pos v ∈ c ∨ Neg v ∈ c ↔ v ∈ l :=
+theorem mem_iff_mem_clause_of_mem_explode {l : list nat} :
+  ∀ {c : clause}, c ∈ explode l → ∀ {n : nat}, Pos n ∈ c ∨ Neg n ∈ c ↔ n ∈ l :=
 assume c hc n, ⟨mem_of_mem_clause_of_mem_explode hc, 
                 mem_clause_of_mem_of_mem_explode hc⟩
 
 -- Corollaries of the above
-theorem mem_var_of_mem_clause_of_mem_explode {l : list V} :
-  ∀ {c : clause V}, c ∈ explode l → ∀ {lit : literal V}, lit ∈ c → literal.var lit ∈ l :=
+theorem mem_var_of_mem_clause_of_mem_explode {l : list nat} :
+  ∀ {c : clause}, c ∈ explode l → ∀ {lit : literal}, lit ∈ c → literal.var lit ∈ l :=
 begin
   intros c hc lit hl,
   cases lit,
@@ -154,8 +147,8 @@ begin
   { simp [var, mem_of_mem_clause_of_mem_explode hc (or.inr hl)] }
 end
 
-theorem not_mem_clause_of_not_mem_of_mem_explode {l : list V} : 
-  ∀ {c : clause V}, c ∈ explode l → ∀ {v : V}, v ∉ l → Pos v ∉ c ∧ Neg v ∉ c :=
+theorem not_mem_clause_of_not_mem_of_mem_explode {l : list nat} : 
+  ∀ {c : clause}, c ∈ explode l → ∀ {n : nat}, n ∉ l → Pos n ∉ c ∧ Neg n ∉ c :=
 begin
   intros c hc n,
   contrapose,
@@ -163,8 +156,8 @@ begin
   exact mem_of_mem_clause_of_mem_explode hc
 end
 
-theorem not_mem_of_not_mem_clause_of_mem_explode {l : list V} : 
-  ∀ {c : clause V}, c ∈ explode l → ∀ {v : V}, (Pos v ∉ c) ∧ (Neg v ∉ c) → v ∉ l :=
+theorem not_mem_of_not_mem_clause_of_mem_explode {l : list nat} : 
+  ∀ {c : clause}, c ∈ explode l → ∀ {n : nat}, (Pos n ∉ c) ∧ (Neg n ∉ c) → n ∉ l :=
 begin
   intros c hc n,
   contrapose,
@@ -174,7 +167,7 @@ end
 
 /-! # nodup properties of explode -/
 
-theorem explode_nodup (l : list V) : nodup (explode l) :=
+theorem explode_nodup (l : list nat) : nodup (explode l) :=
 begin
   induction l with n ns ih,
   { simp },
@@ -189,8 +182,8 @@ begin
 end
 
 -- This can be made into a non-induction argument
-theorem mem_nodup_of_nodup {l : list V} (h : nodup l) :
-  ∀ {c : clause V}, c ∈ explode l → nodup c :=
+theorem mem_nodup_of_nodup {l : list nat} (h : nodup l) :
+  ∀ {c : clause}, c ∈ explode l → nodup c :=
 begin
   induction l with n ns ih,
   { simp },
@@ -202,8 +195,8 @@ begin
       simp [hpos, hneg, ih (nodup_of_nodup_cons h) ha] } }
 end
 
-theorem xor_mem_clause_of_mem_of_mem_explode {l : list V} (h : nodup l) :
-  ∀ {c : clause V}, c ∈ explode l → ∀ {v : V}, v ∈ l → xor (Pos v ∈ c) (Neg v ∈ c) :=
+theorem xor_mem_clause_of_mem_of_mem_explode {l : list nat} (h : nodup l) :
+  ∀ {c : clause}, c ∈ explode l → ∀ {n : nat}, n ∈ l → xor (Pos n ∈ c) (Neg n ∈ c) :=
 begin
   induction l with m ms ih,
   { simp },

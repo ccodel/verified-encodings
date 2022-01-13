@@ -48,16 +48,21 @@ lemma gate_eq_clause (g : xor_gate V) : g = g.to_clause :=
 by simp [to_clause]
 
 /- Evaluates the XOR gate under an assignment -/
-def eval (α : assignment V) (g : xor_gate V) : bool :=
+protected def eval (α : assignment V) (g : xor_gate V) : bool :=
   g.foldr (λ l b, b ⊕ l.eval α) ff
 
-@[simp] theorem eval_nil (α : assignment V) : eval α [] = ff := rfl
+@[simp] theorem eval_nil (α : assignment V) : xor_gate.eval α [] = ff := rfl
+
+@[simp] protected theorem eval_singleton (α : assignment V) (l : literal V) :
+  xor_gate.eval α [l] = literal.eval α l :=
+by simp [xor_gate.eval]
 
 protected theorem eval_cons (α : assignment V) (l : literal V) (g : xor_gate V) : 
-  eval α (l :: g) = bxor (literal.eval α l) (eval α g) :=
-by simp [eval, foldr_cons, bool.bxor_comm]
+  xor_gate.eval α (l :: g) = bxor (literal.eval α l) (xor_gate.eval α g) :=
+by simp [xor_gate.eval, foldr_cons, bool.bxor_comm]
 
-theorem eval_concat (α : assignment V) (g₁ g₂ : xor_gate V) : eval α (g₁ ++ g₂) = bxor (eval α g₁) (eval α g₂) :=
+theorem eval_concat (α : assignment V) (g₁ g₂ : xor_gate V) : 
+  xor_gate.eval α (g₁ ++ g₂) = bxor (xor_gate.eval α g₁) (xor_gate.eval α g₂) :=
 begin
   induction g₁ with l ls ih,
   { simp },
@@ -65,11 +70,11 @@ begin
 end
 
 theorem eval_cons_conjunctive (α : assignment V) (l : literal V) (g : xor_gate V) : 
-  eval α (l :: g) = (literal.eval α l || eval α g) && (!(literal.eval α l) || !(eval α g)) :=
+  xor_gate.eval α (l :: g) = (literal.eval α l || xor_gate.eval α g) && (!(literal.eval α l) || !(xor_gate.eval α g)) :=
 by simp only [← bxor_conjunctive, xor_gate.eval_cons α l g]
 
 theorem eval_cons_disjunctive (α : assignment V) (l : literal V) (g : xor_gate V) :
-  eval α (l :: g) = (!(literal.eval α l) && eval α g) || (literal.eval α l && !(eval α g)) :=
+  xor_gate.eval α (l :: g) = (!(literal.eval α l) && xor_gate.eval α g) || (literal.eval α l && !(xor_gate.eval α g)) :=
 by simp only [← bxor_disjunctive, xor_gate.eval_cons α l g]
 
 /- Using a recursive evaluation function is sometimes more convenient -/
@@ -79,10 +84,10 @@ def eval_rec (α : assignment V) : xor_gate V → bool
 
 /- To use the recursive definition, we need to prove that the two functions are equivalent -/
 theorem eval_and_eval_rec_equiv (α : assignment V) (g : xor_gate V) : 
-  eval α g = eval_rec α g :=
+  xor_gate.eval α g = eval_rec α g :=
 begin
   induction g with l ls ih,
-  { simp [eval_rec, eval] },
+  { simp [eval_rec, xor_gate.eval] },
   { simp [eval_rec, ih, xor_gate.eval_cons] },
 end
 
@@ -108,6 +113,19 @@ begin
     { rw ← gate_eq_clause ls at ih,
       simp [to_clause, xor_gate.eval_cons, count_tt_cons, bool.to_nat, h, ih] } }
 end
+
+theorem eval_eq_of_perm (α : assignment V) {g₁ g₂ : xor_gate V} :
+  g₁ ~ g₂ → xor_gate.eval α g₁ = xor_gate.eval α g₂ :=
+begin
+  intro h,
+  rw xor_odd_eval_tt α g₁,
+  rw xor_odd_eval_tt α g₂,
+  exact congr_arg nat.bodd (perm.countp_eq _ h)
+end
+
+protected theorem eval_append (g₁ g₂ : list (literal V)) (α : assignment V) :
+  xor_gate.eval α (g₁ ++ g₂) = ((xor_gate.eval α g₁) ⊕ (xor_gate.eval α g₂)) :=
+by simp [xor_odd_eval_tt α, countp_append]
 
 /-! ## Naive encoding, simple version -/
 
@@ -210,7 +228,7 @@ theorem odd_negation_iff_not_mem_to_xor
 
 -- We prove that the naive encoding is equivalent to an XOR gate of all positive literals
 lemma exists_to_xor_cnf_of_xor {l : list V} 
-  : (∃ (α : assignment V), eval α (map Pos l) = tt) → 
+  : (∃ (α : assignment V), xor_gate.eval α (map Pos l) = tt) → 
      ∃ (α₂ : assignment V), cnf.eval α₂ (to_xor_cnf l) = tt :=
 begin
   rintros ⟨α, ha⟩,
@@ -226,7 +244,7 @@ end
 
 lemma exists_xor_of_to_xor_cnf {l : list V}
   : (∃ (α : assignment V), cnf.eval α (to_xor_cnf l) = tt) → 
-    ∃ (α₂ : assignment V), eval α₂ (map Pos l) = tt :=
+    ∃ (α₂ : assignment V), xor_gate.eval α₂ (map Pos l) = tt :=
 begin
   rintros ⟨α, ha⟩,
   use α,
@@ -388,7 +406,7 @@ theorem odd_flips_iff_not_mem_xor_cnf {l : list (literal V)}
 ⟨not_mem_xor_cnf_of_odd_flips_of_map_var_eq hc, odd_flips_of_not_mem_xor_cnf_of_map_var_eq hc⟩
 
 lemma exists_xor_cnf_of_xor {l : list (literal V)} :
-  (∃ (α : assignment V), eval α l = tt) → 
+  (∃ (α : assignment V), xor_gate.eval α l = tt) → 
   ∃ (α₂ : assignment V), cnf.eval α₂ (xor_cnf l) = tt :=
 begin
   rintros ⟨α, ha⟩,
@@ -401,12 +419,12 @@ begin
   have neqodd := neq_of_ff_of_tt ha ((even_flips_iff_mem_xor_cnf mve).mpr hc),
   have neq := ne_of_apply_ne nat.bodd neqodd,
   rw count_flips_comm at neq,
-  exact eval_tt_of_neq_flips c mve.symm neq
+  exact eval_tt_of_neq_flips mve.symm neq
 end
 
 lemma exists_xor_of_xor_cnf {l : list (literal V)} :
   (∃ (α : assignment V), cnf.eval α (xor_cnf l) = tt) →
-  ∃ (α₂ : assignment V), eval α₂ l = tt :=
+  ∃ (α₂ : assignment V), xor_gate.eval α₂ l = tt :=
 begin
   rintros ⟨α, ha⟩,
   use α,
@@ -440,6 +458,34 @@ begin
     exact exists_xor_cnf_of_xor this }
 end
 
+-- Some proofs require that the naive encoding exactly represents xor. Equality is stronger
+-- Technically, equality is stronger than equisatisfiability, think about replacing above?
+theorem eval_xor_cnf_eq_eval_xor_gate (l : list (literal V)) (α : assignment V) :
+  cnf.eval α (xor_cnf l) = xor_gate.eval α l :=
+begin
+  cases l with l ls,
+  { simp },
+  { have red := xor_odd_eval_tt2 α (l :: ls),
+    cases h : (xor_gate.eval α (l :: ls));
+    rw [h, ← gate_eq_clause (l :: ls)] at red,
+    { apply eval_ff_iff_exists_clause_eval_ff.mpr,
+      use (falsify α (map var (l :: ls))),
+      split,
+      { rw ← count_flips_falsify_eq_count_tt α (l :: ls) at red,
+        rw count_flips_comm at red,
+        apply (even_flips_iff_mem_xor_cnf (map_var_falsify_eq_list α (map var (l :: ls)))).mp,
+        exact red.symm },
+      { exact falsify_eval_ff α (map var (l :: ls)) } },
+    { apply eval_tt_iff_forall_clause_eval_tt.mpr,
+      intros c hc,
+      have mve := map_var_eq_of_mem_xor_cnf hc,
+      have neqodd := neq_of_ff_of_tt (eq.symm red) ((even_flips_iff_mem_xor_cnf mve).mpr hc),
+      have neq := ne_of_apply_ne nat.bodd neqodd,
+      rw count_flips_comm at neq,
+      exact eval_tt_of_neq_flips mve.symm neq }
+  }
+end
+
 theorem vars_cnf_subset_xor {ls : list (literal V)} :
   ls ≠ [] → cnf.vars (xor_cnf ls) ⊆ (map var ls) :=
 begin
@@ -450,6 +496,10 @@ begin
     rcases cnf.exists_mem_clause_of_mem_vars hn with ⟨c, hcnf, hc⟩,
     simp [← map_var_eq_of_mem_xor_cnf hcnf, mem_vars_iff_mem_map_vars, hc] }
 end
+
+theorem vars_xor_cnf_subset_vars {l : list (literal V)} :
+  l ≠ [] → cnf.vars (xor_cnf l) ⊆ clause.vars l :=
+assume h, subset.trans (vars_cnf_subset_xor h) (map_var_subset_of_vars l)
 
 end xor_gate
 
@@ -462,19 +512,15 @@ open literal
 open clause
 open xor_gate
 
-theorem equiv_on_domain_for_xor {α₁ α₂ : assignment V} {ls : list (literal V)} :
-  (α₁ ≡[map var ls]≡ α₂) → eval α₁ ls = eval α₂ ls :=
+theorem equiv_on_domain_for_xor {α₁ α₂ : assignment V} {l : list (literal V)} :
+  (α₁ ≡[clause.vars l]≡ α₂) → xor_gate.eval α₁ l = xor_gate.eval α₂ l :=
 begin
-  induction ls with v vs ih,
+  induction l with l ls ih,
   { simp },
   { intro h,
-    simp [h, xor_gate.eval_cons],
-    cases heval : literal.eval α₁ v;
-    { cases v;
-      { simp [literal.eval] at heval,
-        simp [var] at h,
-        rw h v (mem_cons_self v _) at heval,
-        simp [heval, ih (eqod_of_eqod_cons h), literal.eval] } } }
+    repeat { rw xor_gate.eval_cons },
+    rw eval_eq_of_mem_of_eqod h (mem_vars_of_mem_clause (mem_cons_self l ls)),
+    simp [ih (eqod_subset_of_eqod (vars_subset_of_vars_cons l ls) h)] }
 end
 
 end assignment

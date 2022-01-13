@@ -31,23 +31,28 @@ notation a ` ⊕ ` b := bxor a b
 @[simp] theorem cond_tt_ff : ∀ a, cond a tt ff = a := dec_trivial
 @[simp] theorem cond_ff_tt : ∀ a, cond a ff tt = bnot a := dec_trivial
 
--- I feel like this exists in the library somewhere...
-theorem tt_of_cond_eq_tt_of_ne [decidable_eq α] {c d : α} {b : bool} : 
-  c ≠ d → cond b c d = c → b = tt :=
+theorem tt_of_cond_ne_second [decidable_eq α] {c d : α} {b : bool} :
+  cond b c d ≠ d → b = tt :=
+by cases b; simp
+
+theorem ff_of_cond_ne_first [decidable_eq α] {c d : α} {b : bool} :
+  cond b c d ≠ c → b = ff :=
+by cases b; simp
+
+theorem tt_of_cond_eq_of_ne_second [decidable_eq α] {c d e : α} {b : bool} :
+  d ≠ e → cond b c d = e → b = tt :=
 begin
   cases b,
-  { simp, intros h₁ h₂, exact absurd h₂.symm h₁ },
-  { simp }
+  { simp, exact id },
+  { tautology }
 end
 
-theorem ff_of_cond_eq_ff_of_ne [decidable_eq α] {c d : α} {b : bool} :
-  c ≠ d → cond b c d = d → b = ff :=
+theorem ff_of_cond_eq_of_ne_first [decidable_eq α] {c d e : α} {b : bool} :
+  c ≠ e → cond b c d = e → b = ff :=
 begin
   cases b,
-  { simp },
-  { simp,
-    intros h₁ h₂,
-    exact absurd h₂ h₁ }
+  { tautology },
+  { simp, exact id }
 end
 
 theorem band_tt_of_and_tt {b₁ b₂ : bool} : b₁ = tt ∧ b₂ = tt → b₁ && b₂ = tt :=
