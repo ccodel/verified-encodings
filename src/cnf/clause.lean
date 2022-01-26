@@ -11,14 +11,7 @@ import cnf.literal
 import cnf.assignment
 import basic
 
-import data.nat.basic
-import init.data.nat.lemmas
 import data.list.basic
-import data.list.count
-import data.list.nodup
-import data.list.perm
-import init.logic
-import init.function
 
 universe u
 
@@ -42,7 +35,7 @@ open list
 
 -- Many of these properties follow directly from lists
 
-instance : inhabited (clause V) := ⟨[default (literal V)]⟩
+instance : inhabited (clause V) := ⟨[arbitrary (literal V)]⟩
 
 instance has_decidable_eq : decidable_eq (clause V)
 | []        []        := is_true rfl
@@ -88,9 +81,20 @@ assume l₁ l₂ b, by simp [bool.bor_comm, bool.bor_assoc]
   clause.eval α [l] = l.eval α :=
 by simp only [clause.eval, foldr, ff_bor]
 
+-- TODO make this, and other similarly-named theorems, protected?
 theorem eval_cons (α : assignment V) (l : literal V) (c : clause V) : 
   clause.eval α (l :: c) = (literal.eval α l) || (clause.eval α c) :=
 by simp only [clause.eval, foldr, bool.bor_comm]
+
+theorem eval_append (α : assignment V) (c₁ c₂ : clause V) :
+  clause.eval α (c₁ ++ c₂) = c₁.eval α || c₂.eval α :=
+begin
+  unfold clause.eval,
+  rw foldr_append,
+  cases foldr (λ l b, b || literal.eval α l) ff c₂,
+  { rw bor_ff },
+  { rw [bor_tt, foldr_bor_tt] }
+end
 
 theorem eval_tt_iff_exists_literal_eval_tt {α : assignment V} {c : clause V} : 
   clause.eval α c = tt ↔ ∃ l ∈ c, literal.eval α l = tt :=
@@ -124,12 +128,12 @@ theorem eval_ff_iff_forall_literal_eval_ff {α : assignment V} {c : clause V} :
 begin
   split,
   { induction c with l ls ih,
-    { simp },
+    { intros _ l hl, exact absurd hl (not_mem_nil l) },
     { simp [eval_cons],
       intros hl hds,
       exact and.intro hl (ih hds) } },
   { induction c with l ls ih,
-    { simp },
+    { rw eval_nil, tautology },
     { intro h,
       simp [eval_cons, h l (mem_cons_self l ls)],
       have : ∀ (m : literal V), m ∈ ls → literal.eval α m = ff,
@@ -188,12 +192,12 @@ assume h, eval_ff_of_superlist_eval_ff (sublist_cons l c) h
 
 /-! ### Counting -/
 
-/- Counts the number of literals that evaluate to true in the clause, under α -/
-def count_tt (α : assignment V) (c : clause V) : nat :=
+/- Counts the number of literals that evaluate to true, under α -/
+protected def count_tt (α : assignment V) (c : clause V) : nat :=
   c.countp (literal.is_true α)
 
-/- Counts the number of literals that evaluate to false in the clause, under α -/
-def count_ff (α : assignment V) (c : clause V) : nat :=
+/- Counts the number of literals that evaluate to false, under α -/
+protected def count_ff (α : assignment V) (c : clause V) : nat :=
   c.countp (literal.is_false α)
 
 /- Counts the number of positive literals in the clause -/
@@ -204,18 +208,18 @@ def count_pos (c : clause V) : nat :=
 def count_neg (c : clause V) : nat :=
   c.countp literal.is_neg
 
-@[simp] lemma count_tt_nil (α : assignment V) : count_tt α [] = 0 := rfl
-@[simp] lemma count_ff_nil (α : assignment V) : count_ff α [] = 0 := rfl
+@[simp] lemma count_tt_nil (α : assignment V) : clause.count_tt α [] = 0 := rfl
+@[simp] lemma count_ff_nil (α : assignment V) : clause.count_ff α [] = 0 := rfl
 @[simp] lemma count_pos_nil : count_pos ([] : clause V) = 0 := rfl
 @[simp] lemma count_neg_nil : count_neg ([] : clause V) = 0 := rfl
 
 @[simp] theorem count_tt_singleton (α : assignment V) (l : literal V) :
-  count_tt α [l] = cond (l.eval α) 1 0 :=
-by cases h : (l.eval α); { simp [h, count_tt, literal.is_true] }
+  clause.count_tt α [l] = cond (l.eval α) 1 0 :=
+by cases h : (l.eval α); { simp [h, clause.count_tt, literal.is_true] }
 
 @[simp] theorem count_ff_singleton (α : assignment V) (l : literal V) :
-  count_ff α [l] = cond (l.eval α) 0 1 :=
-by cases h : (l.eval α); { simp [h, count_ff, literal.is_false] }
+  clause.count_ff α [l] = cond (l.eval α) 0 1 :=
+by cases h : (l.eval α); { simp [h, clause.count_ff, literal.is_false] }
 
 @[simp] theorem count_pos_singleton (l : literal V) :
   count_pos [l] = cond l.is_pos 1 0 :=
@@ -226,14 +230,14 @@ by cases l; simp [count_pos, literal.is_pos]
 by cases l; simp [count_neg, literal.is_neg]
 
 theorem count_tt_cons (α : assignment V) (l : literal V) (c : clause V) :
-  count_tt α (l :: c) = cond (l.eval α) (1 + c.count_tt α) (c.count_tt α) :=
+  clause.count_tt α (l :: c) = cond (l.eval α) (1 + c.count_tt α) (c.count_tt α) :=
 by cases h : (literal.eval α l); 
-  { simp [h, literal.is_true, count_tt, add_comm] }
+  { simp [h, literal.is_true, clause.count_tt, add_comm] }
 
 theorem count_ff_cons (α : assignment V) (l : literal V) (c : clause V) :
-  count_ff α (l :: c) = cond (l.eval α) (c.count_ff α) (1 + c.count_ff α) :=
+  clause.count_ff α (l :: c) = cond (l.eval α) (c.count_ff α) (1 + c.count_ff α) :=
 by cases h : (literal.eval α l);
-  { simp [h, literal.is_false, count_ff, add_comm] }
+  { simp [h, literal.is_false, clause.count_ff, add_comm] }
 
 theorem count_pos_cons (l : literal V) (c : clause V) :
   count_pos (l :: c) = cond l.is_pos (1 + c.count_pos) c.count_pos :=
@@ -246,11 +250,11 @@ by cases l; { simp [count_neg, literal.is_neg, add_comm] }
 -- All the above four functions are capped by the length of the clause
 theorem count_tt_le_length (α : assignment V) (c : clause V) :
   c.count_tt α ≤ c.length :=
-by simp only [count_tt, countp_eq_length_filter, length_filter]
+by simp only [clause.count_tt, countp_eq_length_filter, length_filter]
 
 theorem count_ff_le_length (α : assignment V) (c : clause V) : 
   c.count_ff α ≤ c.length :=
-by simp only [count_ff, countp_eq_length_filter, length_filter]
+by simp only [clause.count_ff, countp_eq_length_filter, length_filter]
 
 theorem count_pos_le_length (c : clause V) : c.count_pos ≤ c.length :=
 by simp only [count_pos, countp_eq_length_filter, length_filter]
@@ -267,8 +271,8 @@ begin
   { cases h : (l.eval α);
     simp [count_tt_cons, count_ff_cons, h, ← ih],
     { rw add_assoc,
-      rw add_comm (count_ff α ls) 1 },
-    { rw add_comm (count_tt α ls + count_ff α ls) 1,
+      rw add_comm (clause.count_ff α ls) 1 },
+    { rw add_comm (clause.count_tt α ls + clause.count_ff α ls) 1,
       rw ← add_assoc } }
 end
 
@@ -323,18 +327,18 @@ begin
   { induction c with l ls ih,
     { simp },
     { simp [eval_cons, count_tt_cons],
-      have : 1 + count_tt α ls ≠ 0,
+      have : 1 + clause.count_tt α ls ≠ 0,
       { rw add_comm,
         rw ← nat.succ_eq_add_one,
         exact nat.succ_ne_zero _ },
       intro h,
-      have := ff_of_cond_eq_of_ne_first this h,
+      have := ff_of_ne_first_of_cond_eq this h,
       simp [this] at h,
       exact and.intro this (ih h) } }
 end
 
 theorem count_tt_eval_tt_iff_gt_zero {α : assignment V} {c : clause V} :
-  c.eval α = tt ↔ count_tt α c > 0 :=
+  c.eval α = tt ↔ clause.count_tt α c > 0 :=
 begin
   split,
   { intro h,
@@ -406,11 +410,11 @@ begin
 end
 
 theorem count_tt_falsify (α : assignment V) (l : list V) :
-  count_tt α (falsify α l) = 0 :=
+  clause.count_tt α (falsify α l) = 0 :=
 count_tt_eq_zero_iff_eval_ff.mp (falsify_eval_ff α l)
 
 lemma count_tt_truthify (α : assignment V) (l : list V) :
-  count_tt α (truthify α l) = length l :=
+  clause.count_tt α (truthify α l) = length l :=
 begin
   induction l with v vs ih,
   { simp },
@@ -420,7 +424,7 @@ end
 
 -- Falsify negates those literals that, if positive, are true
 theorem count_tt_pos_eq_count_neg_falsify (α : assignment V) (l : list V) :
-  count_tt α (map Pos l) = count_neg (falsify α l) :=
+  clause.count_tt α (map Pos l) = count_neg (falsify α l) :=
 begin
   induction l with v vs ih,
   { simp },
@@ -440,11 +444,11 @@ assume h, by simp [count_neg, sublist.countp_le literal.is_neg h]
 
 theorem count_tt_sublist (α : assignment V) {c₁ c₂ : clause V} :
   c₁ <+ c₂ → c₁.count_tt α ≤ c₂.count_tt α :=
-assume h, by simp [count_tt, sublist.countp_le (literal.is_true α) h]
+assume h, by simp [clause.count_tt, sublist.countp_le (literal.is_true α) h]
 
 theorem count_ff_sublist (α : assignment V) {c₁ c₂ : clause V} :
   c₁ <+ c₂ → c₁.count_ff α ≤ c₂.count_ff α :=
-assume h, by simp [count_ff, sublist.countp_le (literal.is_false α) h]
+assume h, by simp [clause.count_ff, sublist.countp_le (literal.is_false α) h]
 
 theorem pos_count_pos_iff_exists_pos {c : clause V} :
   c.count_pos > 0 ↔ ∃ l ∈ c, literal.is_pos l :=
@@ -456,11 +460,11 @@ by simp [count_neg, countp_pos]
 
 theorem pos_count_tt_iff_exists_tt {α : assignment V} {c : clause V} :
   c.count_tt α > 0 ↔ ∃ l ∈ c, literal.is_true α l :=
-by simp [count_tt, countp_pos]
+by simp [clause.count_tt, countp_pos]
 
 theorem pos_count_ff_iff_exists_ff {α : assignment V} {c : clause V} :
   c.count_ff α > 0 ↔ ∃ l ∈ c, literal.is_false α l :=
-by simp [count_ff, countp_pos]
+by simp [clause.count_ff, countp_pos]
 
 /-! # Flip counting -/
 
@@ -491,7 +495,7 @@ by { by_cases l₁.flip = l₂; simp [count_flips, h] }
 theorem count_flips_self (c : clause V) : count_flips c c = 0 :=
 begin
   induction c with l ls ih,
-  { simp },
+  { refl },
   { simp [count_flips, flip_ne, ih] }
 end
 
@@ -523,7 +527,7 @@ begin
 end
 
 theorem count_flips_falsify_eq_count_tt (α : assignment V) (c : clause V) :
-  count_flips c (falsify α (map var c)) = count_tt α c :=
+  count_flips c (falsify α (map var c)) = clause.count_tt α c :=
 begin
   induction c with l ls ih,
   { simp },
@@ -537,7 +541,7 @@ end
 
 theorem eval_tt_of_tt_ne_neg_of_map_var_eq 
   {α : assignment V} {l : list V} {c : clause V} :
-  map var c = l → count_tt α (map Pos l) ≠ count_neg c → c.eval α = tt :=
+  map var c = l → clause.count_tt α (map Pos l) ≠ count_neg c → c.eval α = tt :=
 begin
   induction l with v vs ih generalizing c,
   { rw map_eq_nil, rintro rfl, contradiction },
@@ -561,8 +565,8 @@ end
 -- Basically the same proof here as the one above
 -- Take complement of count_ff, etc. to get above premises?
 theorem eval_tt_of_ff_ne_pos_of_map_var_eq 
-  {α : assignment V} {l : list V} {c : clause V} :
-  map var c = l → count_ff α (map Pos l) ≠ count_pos c → c.eval α = tt :=
+  {α : assignment V} {l : list V} {c : clause V} : map var c = l 
+    → clause.count_ff α (map Pos l) ≠ count_pos c → c.eval α = tt :=
 begin
   induction l with v vs ih generalizing c,
   { rw map_eq_nil, rintro rfl, contradiction },
@@ -585,8 +589,8 @@ end
 
 -- Corollary of the above wrt parity reasoning
 theorem eval_tt_of_opposite_parity 
-  {α : assignment V} {l : list V} {c : clause V} :
-  map var c = l → nat.bodd (count_tt α (map Pos l)) ≠ nat.bodd (count_neg c) 
+  {α : assignment V} {l : list V} {c : clause V} : map var c = l 
+    → nat.bodd (clause.count_tt α (map Pos l)) ≠ nat.bodd (count_neg c) 
     → clause.eval α c = tt :=
 assume hc hcount, 
   eval_tt_of_tt_ne_neg_of_map_var_eq hc (ne_of_apply_ne nat.bodd hcount)
@@ -596,7 +600,7 @@ assume hc hcount,
 -- variable in that clause will evaluate to true
 theorem eval_tt_of_neq_flips {α : assignment V} {c₁ c₂ : clause V} :
   map var c₁ = map var c₂ → 
-    count_tt α c₁ ≠ count_flips c₁ c₂ → c₂.eval α = tt :=
+    clause.count_tt α c₁ ≠ count_flips c₁ c₂ → c₂.eval α = tt :=
 begin
   induction c₁ with l ls ih generalizing c₂,
   { simp },
@@ -623,22 +627,20 @@ end
 
 -- Extract the set of variables in the clause
 -- As all properties are set-like properties, use a finset
-
 protected def vars : clause V → finset V
 | []        := ∅
 | (l :: ls) := {l.var} ∪ (vars ls) -- Use insert instead?
 
 @[simp] theorem vars_nil : clause.vars ([] : clause V) = ∅ := rfl
 
-@[simp] theorem vars_singleton (l : literal V) : 
-  clause.vars [l] = {l.var} :=
+@[simp] theorem vars_singleton (l : literal V) : clause.vars [l] = {l.var} :=
 by { unfold clause.vars, rw finset.union_empty }
 
 theorem mem_vars_cons_of_mem_vars {c : clause V} (l : literal V) {v : V} : 
   v ∈ c.vars → v ∈ clause.vars (l :: c) :=
 assume h, finset.mem_union.mpr (or.inr h)
 
-theorem mem_vars_of_mem_clause {c : clause V} {l : literal V} : 
+theorem mem_vars_of_mem {c : clause V} {l : literal V} : 
   l ∈ c → l.var ∈ c.vars :=
 begin
   induction c with d ds ih,
@@ -672,7 +674,7 @@ theorem vars_subset_of_subset {c₁ c₂ : clause V} :
 begin
   intros h v hv,
   rcases exists_mem_clause_of_mem_vars hv with ⟨l, hl, rfl⟩,
-  exact mem_vars_of_mem_clause (h hl)
+  exact mem_vars_of_mem (h hl)
 end
 
 -- (map var c) and vars c are equivalent from a set perspective
@@ -684,7 +686,7 @@ begin
     exact mem_map.mpr (exists_mem_clause_of_mem_vars h) },
   { intro h,
     rcases mem_map.mp h with ⟨l, hmem, hv⟩,
-    exact hv ▸ mem_vars_of_mem_clause hmem }
+    exact hv ▸ mem_vars_of_mem hmem }
 end
 
 theorem not_mem_vars_iff_not_mem_map_vars {c : clause V} {v : V} :
@@ -699,7 +701,7 @@ begin
     rcases exists_mem_clause_of_mem_vars h with ⟨l, hmem, hv⟩,
     cases l; { rw ← hv, simp [var, hmem] } },
   { rintros (h | h);
-    { exact mem_vars_of_mem_clause h } }
+    { exact mem_vars_of_mem h } }
 end
 
 theorem vars_append_subset_left (c₁ c₂ : clause V) :
@@ -707,7 +709,7 @@ theorem vars_append_subset_left (c₁ c₂ : clause V) :
 begin
   intros v hv,
   rcases mem_vars_iff_pos_or_neg_mem_clause.mp hv with hv | hv;
-  { have := mem_vars_of_mem_clause (mem_append_left _ hv),
+  { have := mem_vars_of_mem (mem_append_left _ hv),
     assumption },
 end
 
@@ -716,7 +718,7 @@ theorem vars_append_subset_right (c₁ c₂ : clause V) :
 begin
   intros v hv,
   rcases mem_vars_iff_pos_or_neg_mem_clause.mp hv with hv | hv;
-  { have := mem_vars_of_mem_clause (mem_append_right _ hv),
+  { have := mem_vars_of_mem (mem_append_right _ hv),
     assumption },
 end
 
@@ -734,7 +736,7 @@ begin
   intro h,
   rcases exists_mem_clause_of_mem_vars h with ⟨l, hl, rfl⟩,
   rcases mem_append.mp hl with hl | hl;
-  { simp [mem_vars_of_mem_clause hl] }
+  { simp [mem_vars_of_mem hl] }
 end
 
 theorem not_mem_vars_append_left {v : V} {c₁ c₂ : clause V} :
@@ -763,33 +765,25 @@ end
 
 end clause
 
-/-! # Equivalence on domain for clauses -/
+/-! # eqod for clauses -/
 
 namespace assignment
 
-open assignment
-open list
-open literal
 open clause
 
-theorem eval_eq_of_eqod_on_map_var {α₁ α₂ : assignment V} {c : clause V} :
-  (α₁ ≡[map var c]≡ α₂) → clause.eval α₁ c = clause.eval α₂ c :=
+theorem eval_eq_clause_of_eqod {α₁ α₂ : assignment V} {c : clause V} :
+  (α₁ ≡c.vars≡ α₂) → c.eval α₁ = c.eval α₂ :=
 begin
-  intro heq,
-  cases h : (clause.eval α₂ c),
-  { rw eval_ff_iff_forall_literal_eval_ff at h,
+  intro h,
+  cases hev : (c.eval α₂),
+  { rw eval_ff_iff_forall_literal_eval_ff at hev,
     apply eval_ff_iff_forall_literal_eval_ff.mpr,
     intros l hl,
-    exact h l hl ▸ eval_eq_of_mem_of_eqod heq (mem_map_of_mem var hl) },
-  { rcases eval_tt_iff_exists_literal_eval_tt.mp h with ⟨l, hl, hlt⟩,
+    exact hev l hl ▸ eval_eq_of_eqod_of_var_mem h (mem_vars_of_mem hl) },
+  { rcases eval_tt_iff_exists_literal_eval_tt.mp hev with ⟨l, hl, htt⟩,
     apply eval_tt_iff_exists_literal_eval_tt.mpr,
     use [l, hl],
-    exact hlt ▸ eval_eq_of_mem_of_eqod heq (mem_map_of_mem var hl) }
+    exact htt ▸ eval_eq_of_eqod_of_var_mem h (mem_vars_of_mem hl) }
 end
-
--- TODO: Think about typing here
---theorem eval_eq_of_eqod_on_vars {α₁ α₂ : assignment V} {c : clause V} :
---  (α₁ ≡[c.vars.to_list]≡ α₂) → clause.eval α₁ c = clause.eval α₂ c :=
---assume h, eval_eq_of_eqod_on_map_var (eqod_subset_of_eqod (map_var_subset_of_vars c) h)
 
 end assignment

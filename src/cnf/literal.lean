@@ -7,7 +7,6 @@ Authors: Cayden Codel, Jeremy Avigad, Marijn Heule
 Carnegie Mellon University
 -/
 
-import logic.function.basic
 import tactic
 
 universe u

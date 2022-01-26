@@ -6,7 +6,7 @@ Authors: Cayden Codel, Jeremy Avigad, Marijn Heule
 Carnegie Mellon University
 -/
 
-import data.list.basic
+import data.finset.basic
 import cnf.literal
 
 universe u
@@ -17,7 +17,7 @@ variables {V : Type u} [decidable_eq V] [inhabited V]
 namespace assignment
 
 open literal
-open list
+open finset
 
 /-! # Properties -/
 
@@ -56,178 +56,167 @@ end
 /-! # Equivalence on domain -/
 
 /- Two assignments are equivalent on a domain of variables if they agree
-   on the truth value of that variable for all variables in the list.
+   on the truth value of that variable for all variables in the set.
+
+   We choose finsets as our objects of interest because the domain of any
+   formula is finite, so equivalences that extend beyond those domains are
+   essentially irrelevant.
 -/
-def eqod (α₁ α₂ : assignment V) (l : list V) : Prop := ∀ v ∈ l, α₁ v = α₂ v
+def eqod (α₁ α₂ : assignment V) (s : finset V) : Prop := ∀ v ∈ s, α₁ v = α₂ v
 
--- Better notation for this?
-notation α₁ ` ≡[`:50 l `]≡ `:50 α₂ := eqod α₁ α₂ l
+-- TODO how to properly set up this notation so that () are not required
+notation α₁ ` ≡` s `≡ ` α₂ := eqod α₁ α₂ s
 
-@[refl] theorem eqod.refl (α : assignment V) (l : list V) : α ≡[l]≡ α :=
-by simp [eqod]
+@[refl] theorem eqod.refl (α : assignment V) (s : finset V) : α ≡s≡ α :=
+by tautology
 
-@[symm] theorem eqod.symm {α₁ α₂ : assignment V} {l : list V} (p : α₁ ≡[l]≡ α₂) :
-  α₂ ≡[l]≡ α₁ :=
-assume v hv, (p v hv).symm
+@[symm] theorem eqod.symm {α₁ α₂ : assignment V} {s : finset V} :
+  (α₁ ≡s≡ α₂) → (α₂ ≡s≡ α₁) :=
+assume h v hv, (h v hv).symm
 
-theorem eqod_comm {α₁ α₂ : assignment V} {l : list V} :
-  (α₁ ≡[l]≡ α₂) ↔ (α₂ ≡[l]≡ α₁) :=
+theorem eqod_comm {α₁ α₂ : assignment V} {s : finset V} :
+  (α₁ ≡s≡ α₂) ↔ (α₂ ≡s≡ α₁) :=
 ⟨eqod.symm, eqod.symm⟩
 
-@[trans] theorem eqod.trans {α₁ α₂ α₃ : assignment V} {l : list V} :
-  (α₁ ≡[l]≡ α₂) → (α₂ ≡[l]≡ α₃) → (α₁ ≡[l]≡ α₃) :=
+@[trans] theorem eqod.trans {α₁ α₂ α₃ : assignment V} {s : finset V} :
+  (α₁ ≡s≡ α₂) → (α₂ ≡s≡ α₃) → (α₁ ≡s≡ α₃) :=
 assume h₁ h₂ v hv, eq.trans (h₁ v hv) (h₂ v hv)
 
-@[simp] theorem eqod_nil (α₁ α₂ : assignment V) : α₁ ≡[nil]≡ α₂ :=
-by simp [eqod]
+@[simp] theorem eqod_nil (α₁ α₂ : assignment V) : α₁ ≡∅≡ α₂ :=
+assume v hv, absurd hv (not_mem_empty v)
 
--- If domains become sets instead of lists, then perms become moot
-theorem eqod_perm {α₁ α₂ : assignment V} {l₁ l₂ : list V} :
-  l₁ ~ l₂ → (α₁ ≡[l₁]≡ α₂) → α₁ ≡[l₂]≡ α₂ :=
-assume h₁ h₂ v hv, h₂ v ((perm.mem_iff h₁).mpr hv)
+theorem eqod_subset {α₁ α₂ : assignment V} {s₁ s₂ : finset V} :
+  s₁ ⊆ s₂ → (α₁ ≡s₂≡ α₂) → (α₁ ≡s₁≡ α₂) :=
+assume h hs₂ v hv, hs₂ v (h hv)
 
-theorem eqod_of_eqod_cons {α₁ α₂ : assignment V} {v : V} {l : list V} :
-  (α₁ ≡[v :: l]≡ α₂) → α₁ ≡[l]≡ α₂ :=
-by simp [eqod]
-
--- From the set point of view, we might want non-membership of new value v
-theorem eqod_cons_of_eq_of_not_mem_of_eqod {α₁ α₂ : assignment V} {v : V} {l : list V} :
-  (α₁ ≡[l]≡ α₂) → α₁ v = α₂ v → α₁ ≡[v :: l]≡ α₂ :=
+-- Can extend equivalence if equivalent on var
+theorem eqod_union_of_eqod_of_eq {α₁ α₂ : assignment V} 
+  {v : V} {s : finset V} :
+  (α₁ ≡s≡ α₂) → α₁ v = α₂ v → (α₁ ≡({v} ∪ s)≡ α₂) :=
 begin
-  intros h₁ heq m hm,
-  rcases eq_or_mem_of_mem_cons hm with rfl | hml,
-  { exact heq },
-  { exact h₁ m hml }
+  intros heqod heq u hu,
+  rcases mem_union.mp hu with h | h,
+  { rw mem_singleton at h, rw [h, heq] },
+  { exact heqod u h }
 end
 
-theorem eqod_subset_of_eqod {α₁ α₂ : assignment V} {l₁ l₂ : list V} :
-  l₁ ⊆ l₂ → (α₁ ≡[l₂]≡ α₂) → α₁ ≡[l₁]≡ α₂ :=
-assume h₁ h₂ v hv, h₂ v (h₁ hv)
-
--- The types of mem_union don't check?
---theorem eqod_union_of_eqod [decidable_eq V] [has_union (list V)] [has_mem V (list V)] {α₁ α₂ : assignment V} {l₁ l₂ : list V} :
---  (α₁ ≡[l₁]≡ α₂) → (α₁ ≡[l₂]≡ α₂) → α₁ ≡[l₁ ∪ l₂]≡ α₂ :=
---assume h₁ h₂ v hv, by { cases (mem_union.mp hn), exact h₁ n h, exact h₂ n h }
-
--- Same thing here, with mem_inter
---theorem eqod_inter_of_eqod [has_inter (list V)] {α₁ α₂ : assignment V} {l₁ l₂ : list V} :
---  (α₁ ≡[l₁]≡ α₂) → (α₁ ≡[l₂]≡ α₂) → α₁ ≡[l₁ ∩ l₂]≡ α₂ :=
---assume h₁ _ v hv, h₁ v (mem_inter.mp hv).1
-
-theorem eqod_append_left {α₁ α₂ : assignment V} {l₁ l₂ : list V} :
-  (α₁ ≡[l₁ ++ l₂]≡ α₂) → α₁ ≡[l₁]≡ α₂ :=
-assume h, eqod_subset_of_eqod (sublist.subset (sublist_append_left l₁ l₂)) h
-
-theorem eqod_append_right {α₁ α₂ : assignment V} {l₁ l₂ : list V} :
-  (α₁ ≡[l₁ ++ l₂]≡ α₂) → α₁ ≡[l₂]≡ α₂ :=
-assume h, eqod_subset_of_eqod (sublist.subset (sublist_append_right l₁ l₂)) h
-
-/-! # Evaluation and extension -/
-
-theorem eval_eq_of_mem_of_eqod {α₁ α₂ : assignment V} {l : list V} {lit : literal V} :
-  (α₁ ≡[l]≡ α₂) → lit.var ∈ l → literal.eval α₁ lit = literal.eval α₂ lit :=
-by { cases lit; simp only [literal.eval, var]; intros h hl; simp only [h lit hl] }
-
--- Sometimes the domain of equivalence needs to be extended according to a particular assignment
-theorem exists_extended_assignment_of_assignment [decidable_eq V] (α₁ : assignment V) {l : list V} {v : V} :
-  v ∉ l → ∀ (b : bool), ∃ (α₂ : assignment V), (α₁ ≡[l]≡ α₂) ∧ α₂ v = b :=
+-- Can also extend equivalence for unions of sets rather than singletons
+theorem eqod_union {α₁ α₂ : assignment V} {s₁ s₂ : finset V} :
+  (α₁ ≡s₁≡ α₂) → (α₁ ≡s₂≡ α₂) → (α₁ ≡(s₁ ∪ s₂)≡ α₂) :=
 begin
-  intros hv b,
-  use (λ (x : V), if x = v then b else α₁ x),
+  intros h₁ h₂ v hv,
+  rcases mem_union.mp hv with h | h,
+  { exact h₁ v h },
+  { exact h₂ v h }
+end
+
+theorem eqod_inter {α₁ α₂ : assignment V} {s₁ s₂ : finset V} :
+  (α₁ ≡s₁≡ α₂) → (α₁ ≡s₂≡ α₂) → (α₁ ≡(s₁ ∩ s₂)≡ α₂) :=
+assume h₁ _ v hv, h₁ v (mem_inter.mp hv).1
+
+theorem eqod_left_of_eqod_union {α₁ α₂ : assignment V} {s₁ s₂ : finset V} :
+  (α₁ ≡(s₁ ∪ s₂)≡ α₂) → (α₁ ≡s₁≡ α₂) :=
+assume h v hv, h v (mem_union_left s₂ hv)
+
+theorem eqod_right_of_eqod_union {α₁ α₂ : assignment V} {s₁ s₂ : finset V} :
+  (α₁ ≡(s₁ ∪ s₂)≡ α₂) → (α₁ ≡s₂≡ α₂) :=
+assume h v hv, h v (mem_union_right s₁ hv)
+
+/-! # Evaluation with eqod -/
+
+theorem eval_eq_of_eqod_of_var_mem {α₁ α₂ : assignment V} 
+  {s : finset V} {l : literal V} : 
+  (α₁ ≡s≡ α₂) → l.var ∈ s → l.eval α₁ = l.eval α₂ :=
+begin
+  cases l,
+  { unfold var literal.eval,
+    intros h hl,
+    exact h l hl },
+  { unfold var literal.eval,
+    intros h hl,
+    exact congr_arg bnot (h l hl) }
+end
+
+-- Rather than extending the equivalence, as in [eqod_union_of_eqod_of_eq],
+-- sometimes we need to create an assignment that is equivalent 
+-- and agrees on one more specified value
+theorem exists_eqod_and_eq_of_not_mem
+  {s : finset V} {v : V} (α₁ : assignment V) (b : bool) :
+  v ∉ s → ∃ (α₂ : assignment V), (α₁ ≡s≡ α₂) ∧ α₂ v = b :=
+begin
+  intro hv,
+  use (λ x, if x = v then b else α₁ x),
   simp [eqod],
   intros x hx,
   simp [ne_of_mem_of_not_mem hx hv]
 end
 
--- The domain can be extended by whole lists instead
-theorem exists_list_extended_assignment_of_assignment [decidable_eq V] (α₁ : assignment V) {l e : list V} :
-  disjoint l e → ∀ (f : V → bool), ∃ (α₂ : assignment V), (α₁ ≡[l]≡ α₂) ∧ (∀ n ∈ e, α₂ n = f n) :=
+-- The domain can be extended by whole finsets instead
+theorem exists_eqod_and_eq_of_disjoint
+  {s₁ s₂ : finset V} {α₁ : assignment V} (f : V → bool) :
+  disjoint s₁ s₂ → ∃ (α₂ : assignment V), (α₁ ≡s₁≡ α₂) ∧ (∀ v ∈ s₂, α₂ v = f v) :=
 begin
-  intros hle f,
-  use (λ x, if x ∈ e then f x else α₁ x),
+  intro h,
+  use (λ x, if x ∈ s₂ then f x else α₁ x),
   simp [eqod],
   split,
-  { intros v hv, simp [hle hv] },
-  { intros n ha hb, contradiction }
+  { intros v hv,
+    simp [disjoint_left.mp h hv] },
+  { intros v hv₁ hv₂,
+    contradiction }
 end
 
 /-! # ite -/
--- A process by which membership of one set uses assignment 1, else assignment 2
 
-protected def ite (α₁ α₂ : assignment V) (l : list V) : assignment V :=
-  λ v, if v ∈ l then α₁ v else α₂ v
+-- When a variable is in the set, uses the first assignment. Else, the second.
+protected def ite (α₁ α₂ : assignment V) (s : finset V) : assignment V :=
+  λ v, if v ∈ s then α₁ v else α₂ v
 
-@[simp] theorem ite_nil (α₁ α₂ : assignment V) : 
-  ∀ (v : V), (assignment.ite α₁ α₂ []) v = α₂ v :=
-assume v, by simp [assignment.ite]
+@[simp] theorem ite_nil (α₁ α₂ : assignment V) (v : V) : 
+  (assignment.ite α₁ α₂ ∅) v = α₂ v :=
+by simp [assignment.ite]
 
-theorem ite_pos (α₁ α₂ : assignment V) {l : list V} {v : V} :
-  v ∈ l → (assignment.ite α₁ α₂ l) v = α₁ v :=
+theorem ite_pos (α₁ α₂ : assignment V) {s : finset V} {v : V} :
+  v ∈ s → (assignment.ite α₁ α₂ s) v = α₁ v :=
 assume h, by simp [assignment.ite, h]
 
-theorem ite_neg (α₁ α₂ : assignment V) {l : list V} {v : V} :
-  v ∉ l → (assignment.ite α₁ α₂ l) v = α₂ v :=
+theorem ite_neg (α₁ α₂ : assignment V) {s : finset V} {v : V} :
+  v ∉ s → (assignment.ite α₁ α₂ s) v = α₂ v :=
 assume h, by simp [assignment.ite, h]
 
-theorem ite_pos_of_lit (α₁ α₂ : assignment V) {l : list V} {lit : literal V} :
-  lit.var ∈ l → literal.eval (assignment.ite α₁ α₂ l) lit = literal.eval α₁ lit :=
+theorem ite_pos_lit (α₁ α₂ : assignment V) {s : finset V} {l : literal V} :
+  l.var ∈ s → literal.eval (assignment.ite α₁ α₂ s) l = literal.eval α₁ l :=
 begin
-  cases lit,
+  cases l,
   { simp [literal.var, literal.eval], exact ite_pos α₁ α₂ },
   { simp [literal.var, literal.eval],
-    assume h,
-    rw ite_pos α₁ α₂ h }
+    intro h, rw ite_pos α₁ α₂ h }
 end
 
-theorem ite_neg_of_lit (α₁ α₂ : assignment V) {l : list V} {lit : literal V} :
-  lit.var ∉ l → literal.eval (assignment.ite α₁ α₂ l) lit = literal.eval α₂ lit :=
+theorem ite_neg_lit (α₁ α₂ : assignment V) {s : finset V} {l : literal V} :
+  l.var ∉ s → literal.eval (assignment.ite α₁ α₂ s) l = literal.eval α₂ l :=
 begin
-  cases lit,
+  cases l,
   { simp [literal.var, literal.eval], exact ite_neg α₁ α₂ },
   { simp [literal.var, literal.eval],
-    assume h,
-    rw ite_neg α₁ α₂ h }
+    intro h, rw ite_neg α₁ α₂ h }
 end
 
-theorem eqod_ite_of_disjoint (α₁ α₂ : assignment V) {l₁ l₂ : list V} :
-  disjoint l₁ l₂ → α₂ ≡[l₂]≡ (assignment.ite α₁ α₂ l₁) :=
+theorem eqod_ite_of_disjoint (α₁ α₂ : assignment V) {s₁ s₂ : finset V} :
+  disjoint s₁ s₂ → (α₂ ≡s₂≡ (assignment.ite α₁ α₂ s₁)) :=
 assume h v hv, by simp [assignment.ite, disjoint_right.mp h hv]
 
-theorem eqod_ite_of_subset (α₁ α₂ : assignment V) {l₁ l₂ : list V} :
-  l₂ ⊆ l₁ → α₁ ≡[l₂]≡ (assignment.ite α₁ α₂ l₁) :=
+theorem eqod_ite_of_subset (α₁ α₂ : assignment V) {s₁ s₂ : finset V} :
+  s₂ ⊆ s₁ → (α₁ ≡s₂≡ (assignment.ite α₁ α₂ s₁)) :=
 assume h v hv, by simp [assignment.ite, h hv]
 
-/-! # Miscellaneous -/
+/-! # Constant assignments -/
 
 -- Constant function assignments
 def all_tt : assignment V := (λ _, tt)
 def all_ff : assignment V := (λ _, ff)
 
-theorem all_tt_eval_tt : ∀ (n : V), all_tt n = tt := by simp [all_tt]
-theorem all_ff_eval_ff : ∀ (n : V), all_ff n = ff := by simp [all_ff]
-
--- There may be times where setting or flipping variables is important
-def set_var [decidable_eq V] (α : assignment V) (v : V) (b : bool) : assignment V :=
-  λ x, if x = v then b else α x
-
-def flip_var [decidable_eq V] (α : assignment V) (v : V) : assignment V :=
-  λ x, if x = v then bnot (α v) else α x
-
-theorem eval_eq_of_set_var {α : assignment V} {v : V} {b : bool} : 
-  (set_var α v b) v = b :=
-by simp [set_var]
-
-theorem eval_ne_of_flip_var {α : assignment V} {v : V} :
-  α v = bnot ((flip_var α v) v) :=
-by simp [flip_var]
-
-theorem eqod_set_var_of_not_mem (α : assignment V) (v : V) (b : bool) :
-  ∀ (l : list V), v ∉ l → (α ≡[l]≡ (set_var α v b)) :=
-begin
-  intros l h,
-  unfold set_var,
-  intros z hz,
-  simp [ne_of_mem_of_not_mem hz h]
-end
+theorem all_tt_eval_tt : ∀ (v : V), all_tt v = tt := by simp [all_tt]
+theorem all_ff_eval_ff : ∀ (v : V), all_ff v = ff := by simp [all_ff]
 
 end assignment
