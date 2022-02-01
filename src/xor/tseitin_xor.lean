@@ -65,22 +65,50 @@ using_well_founded {
   dec_tac := tactic.assumption
 }
 
-variable {α : Type u}
+def linear_xor2 {k : nat} (hk : k ≥ 3) (x : xor_gate V) (g : gensym V)
+  (hg : disjoint g.stock x.vars) : xor_gate V → cnf V
+| [] := [[]]
+| x₁ := if h : length x₁ ≤ k then direct_xor x₁ else
+                have length ((Pos g.fresh.1) :: (x₁.drop k)) < length x₁,
+                  from (drop_len_lt _ hk (not_le.mp h)),
+                (direct_xor (x₁.take k ++ [(Neg g.fresh.1)])) ++
+                (linear_xor2 ((Pos g.fresh.1) :: (x₁.drop k)))
+using_well_founded {
+  rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ)⟩],
+  dec_tac := tactic.assumption
+}
 
-def test (a : α) : Π (l : list α), length l > 0 → α
-| [] _ := a
-| l hl := if h : length l = 1 then l.nth 0 else
-            test (l.drop 1) (sorry)
+-- Unfolding this does work (when the supporting lemmas are in place)
+/-
+def txor3 : Π (l : list (literal V)), Π (f : nat → V),
+  (injective f) → (∀ v ∈ set.range f, v ∉ (clause.vars l)) → cnf V
+| [] _ _ _ := [[]]
+| l f hinj him := if h : length l ≤ 3 then xor_cnf l else
+                  have length (l.drop 3 ++ [Pos (f 0)]) < length l,
+                    from (dropn_len _ three_gt_one (not_le.mp h)),
+                  (xor_cnf (l.take 3 ++ [Neg (f 0)])) ++
+                  (txor3 (l.drop 3 ++ [Pos (f 0)]) (λ n, f (n + 1)) 
+                    (restriction_injective hinj) (res_disjoint hinj him))
+using_well_founded {
+  rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ.1)⟩],
+  dec_tac := tactic.assumption
+}
+-/
+
+--def test (a : α) : Π (l : list α), length l > 0 → α
+--| [] _ := a
+--| l hl := if h : length l = 1 then l.nth 0 else
+--            test (l.drop 1) (sorry)
 
 lemma linear_base_case {k : nat} (hk : k ≥ 3) (x : xor_gate V) {g : gensym V}
   (hdis : disjoint g.stock x.vars) : 
-  length x ≤ k → linear_xor hk x g hdis = direct_xor x :=
+  length x ≤ k → linear_xor2 hk x g hdis x = direct_xor x :=
 begin
   cases x,
-  { simp only [linear_xor, direct_xor_nil, length, zero_le, forall_true_left] },
+  { simp [linear_xor2] },
   {
     intro h,
-  --  unfold linear_xor,
+    unfold linear_xor2,
   }
 end
 
