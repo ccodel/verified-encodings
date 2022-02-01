@@ -409,6 +409,29 @@ begin
     { simp [h, literal.eval, ih, literal.flip, truthify_cons, falsify_cons] } }
 end
 
+-- If falsify/truthify become type (fin)set, these theorems aren't needed
+theorem falsify_map_var_eq (α : assignment V) (l : list V) : 
+  map var (falsify α l) = l :=
+begin
+  induction l with v vs ih,
+  { simp only [falsify_nil, map_nil] },
+  { cases h : (α v);
+    { simp only [falsify_cons, map_cons, h, var, 
+        true_and, eq_self_iff_true, cond],
+      exact ih } }
+end
+
+theorem truthify_map_var_eq (α : assignment V) (l : list V) :
+  map var (truthify α l) = l :=
+begin
+  induction l with v vs ih,
+  { simp only [truthify_nil, map_nil] },
+  { cases h : (α v);
+    { simp only [truthify_cons, map_cons, h, var, 
+        true_and, eq_self_iff_true, cond],
+      exact ih } }
+end
+
 theorem count_tt_falsify (α : assignment V) (l : list V) :
   clause.count_tt α (falsify α l) = 0 :=
 count_tt_eq_zero_iff_eval_ff.mp (falsify_eval_ff α l)

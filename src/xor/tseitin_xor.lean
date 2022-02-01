@@ -1,19 +1,20 @@
 /-
-This file contains the development of the Tseitin encoding for XOR
+This file contains the development of the Tseitin encoding for XOR.
+Both the pooled and linear encodigns are included here.
 
 Authors: Cayden Codel, Jeremy Avidgad, Marijn Heule
 Carnegie Mellon University
 -/
 
-import cnf.literal_general
-import cnf.clause_general
-import cnf.cnf_general
-import xor.xor_general
+import cnf.literal
+import cnf.clause
+import cnf.cnf
 import cnf.gensym
+import xor.xor
+import xor.direct_xor
 
 import data.list.basic
 import data.nat.basic
-import init.function
 
 universe u
 
@@ -30,34 +31,60 @@ open function
 
 namespace tseitin_xor
 
-lemma dropn_len {α : Type u} {n : nat} (a : α) {l : list α} :
-  n > 1 → length l > n → length (l.drop n ++ [a]) < length l :=
+lemma disjoint_fresh_of_disjoint {x : xor_gate V} {g : gensym V} {k : nat} :
+  k ≥ 3 → disjoint g.stock x.vars → 
+    disjoint g.fresh.2.stock (xor_gate.vars ((Pos g.fresh.1) :: (x.drop k))) :=
 begin
-  intros hn hl,
-  induction l with x xs ih,
-  { simp [lt_trans hn hl] at hl, contradiction },
-  { by_cases length xs = n,
-    { simp [h, gt.lt hn] },
-    { simp at hl,
-      have red := ih (gt.lt (array.push_back_idx hl (ne.symm h))), -- strange theorem
-      simp at red,
-      simp [tsub_add_eq_add_tsub (nat.lt_succ_iff.mp hl)] at red,
-      simp [red] } }
+  sorry,
 end
 
-lemma three_gt_one : 3 > 1 :=
-nat.one_lt_succ_succ 1
-
-lemma exists_three {α : Type u} : ∀ {l : list α},
-  length l > 3 → ∃ (a b c : α) (L : list α), a :: b :: c :: L = l
-| [] := by simp
-| (a :: []) := by simp 
-| (a :: b :: []) := by { simp, intro h, linarith }
-| (a :: b :: c :: L) := begin
-  intro _,
-  use [a, b, c, L, rfl]
+lemma drop_len_lt {k : nat} {x : xor_gate V} (l : literal V) :
+  k ≥ 3 → length x > k → length (l :: (x.drop k)) < length x :=
+begin
+  intros hk hx,
+  rw length_cons,
+  rcases exists_append_of_gt_length hx with ⟨x₁, x₂, rfl, hx₁⟩,
+  rw [← hx₁, ← add_zero x₁.length, length_append, drop_append 0, add_comm],
+  unfold drop,
+  apply add_lt_add_right,
+  rw ← hx₁ at hk,
+  exact nat.lt_of_succ_lt (nat.succ_le_iff.mp hk)
 end
 
+def linear_xor {k : nat} (hk : k ≥ 3) : Π (x : xor_gate V), Π (g : gensym V),
+  (disjoint g.stock x.vars) → cnf V
+| [] _ _   := [[]]
+| x g hdis := if h : length x ≤ k then direct_xor x else
+                have length ((Pos g.fresh.1) :: (x.drop k)) < length x,
+                  from (drop_len_lt _ hk (not_le.mp h)),
+                (direct_xor (x.take k ++ [(Neg g.fresh.1)])) ++
+                (linear_xor ((Pos g.fresh.1) :: (x.drop k)) (g.fresh.2)
+                (disjoint_fresh_of_disjoint hk hdis))
+using_well_founded {
+  rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ.1)⟩],
+  dec_tac := tactic.assumption
+}
+
+variable {α : Type u}
+
+def test (a : α) : Π (l : list α), length l > 0 → α
+| [] _ := a
+| l hl := if h : length l = 1 then l.nth 0 else
+            test (l.drop 1) (sorry)
+
+lemma linear_base_case {k : nat} (hk : k ≥ 3) (x : xor_gate V) {g : gensym V}
+  (hdis : disjoint g.stock x.vars) : 
+  length x ≤ k → linear_xor hk x g hdis = direct_xor x :=
+begin
+  cases x,
+  { simp only [linear_xor, direct_xor_nil, length, zero_le, forall_true_left] },
+  {
+    intro h,
+  --  unfold linear_xor,
+  }
+end
+
+/-
 lemma restriction_injective {f : nat → V} (hf : injective f) :
   injective (λ n, f (n + 1)) :=
 begin
@@ -340,62 +367,11 @@ begin
   rcases stronger_forward l α hinj him ha with ⟨α₂, ha₂, _⟩,
   use [α₂, ha₂]
 end
-
-
-/-
-theorem forward (l : list (literal V)) {f : nat → V} (hinj : injective f)
-  (him : ∀ v ∈ set.range f, v ∉ (clause.vars l)) :
-  (∃ (α : assignment V), cnf.eval α (txor3 l f hinj him) = tt) →
-  ∃ (α₂ : assignment V), cnf.eval α₂ (xor_cnf l) = tt :=
-begin
-    have hperm : [Neg (f 0), a, b, c] ~ [a, b, c, Neg (f 0)],
-      { have p1 := perm.cons b (perm.swap c (Neg (f 0)) []),
-        have p2 := perm.swap b (Neg (f 0)) [c],
-        have p3 := perm.trans p2 p1,
-        have p4 := perm.cons a p3,
-        have p5 := perm.swap a (Neg (f 0)) [b, c],
-        exact perm.trans p5 p4 },
-
-    cases heval0 : α₂ (f 0),
-    {
-      rw eval_xor_cnf_eq_eval_xor_gate (L ++ [Pos (f 0)]) α₂ at ha₂,
-      rw (eval_eq_of_perm α₂ (perm_append_singleton (Pos (f 0)) L)) at ha₂,
-      rw xor_gate.eval_cons at ha₂,
-      simp [heval0, literal.eval] at ha₂,
-    }
-  }
-  { simp [txor3] },
-  {
-    by_cases h : length (l :: ls) ≤ 3,
-    { unfold txor3,
-      simp [h],
-      intros α ha,
-      use [α, ha] },
-    {
-      rcases exists_three (not_le.mp h) with ⟨a, b, c, L, hls⟩,
-      rcases head_eq_of_cons_eq hls with rfl,
-      rcases tail_eq_of_cons_eq hls with rfl,
-      simp [add_assoc] at h,
-      rintros ⟨α, ha⟩,
-      unfold txor3 at ha,
-      simp [add_assoc, h, eval_append] at ha,
-      rcases ha with ⟨h₁, h₂⟩,
-
-      -- Reduction of induction hypothesis
-      have hinjr := restriction_injective hinj,
-      have himr := res_disjoint hinj him,
-
-      rw eval_xor_cnf_eq_eval_xor_gate at h₁,
-      rw h₁ at this,
-      rw xor_gate.eval_cons at this,
-      cases hf : α (f 0),
-      {
-        simp [literal.eval, hf] at this,
-
-      }
-    }
-  }
-
 -/
+
+theorem useless {a : nat} : a > 1 → a > 0 :=
+begin
+  sorry, 
+end
 
 end tseitin_xor

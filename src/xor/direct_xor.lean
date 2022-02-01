@@ -24,7 +24,7 @@ variables {V : Type u} [decidable_eq V] [inhabited V]
 namespace xor_gate
 
 open literal
-open clause
+open clause -- TODO opening clause doesn't seem to open library...
 open cnf
 open list
 open xor_gate
@@ -149,77 +149,68 @@ theorem direct_xor_equisatisfiable (g : xor_gate V) :
   assignment.eqsat (λ α, cnf.eval α (direct_xor g)) (λ α, g.eval α) :=
 begin
   split,
-  { rintros ⟨α, ha⟩,
-    use α, simp [eval_eq_bodd_count_tt α g], simp at ha,
+  { rintros ⟨α, ha⟩, use α,
+    simp [eval_eq_bodd_count_tt α g],
+    simp at ha,
     rcases exists_mem_direct_xor g with ⟨c, hc⟩,
     by_contradiction,
-    rw eq_ff_eq_not_eq_tt at h,
-    --rw clause.count_tt_pos_eq_count_neg_falsify at h,
-    --have := eval_tt_iff_forall_clause_eval_tt.mp ha,
-    rw [← clause.count_flips_falsify_eq_count_tt, count_flips_comm] at h,
-    have falsify_mem := mem_direct_xor_of_even_flips_of_map_var_eq
-      (map_var_falsify_eq_list α (map var l)) h,
-  have falsify_eval := falsify_eval_ff α (map var l),
-  have := this (falsify α (map var l)) falsify_mem,
-  exact absurd_bool this falsify_eval
-  },
-  { rintros ⟨α, ha⟩,
-    rw xor_odd_eval_tt α g at ha,
-  rw ← gate_eq_clause l at ha,
-  use α,
-  apply eval_tt_iff_forall_clause_eval_tt.mpr,
-  intros c hc,
-  have mve := map_var_eq_of_mem_direct_xor hc,
-  have neqodd := neq_of_ff_of_tt ha ((even_flips_iff_mem_direct_xor mve).mpr hc),
-  have neq := ne_of_apply_ne nat.bodd neqodd,
-  rw count_flips_comm at neq,
-  exact eval_tt_of_neq_flips mve.symm neq
-
-    exact exists_xor_of_direct_xor ⟨α, ha⟩ }
+    rw [eq_ff_eq_not_eq_tt, ← clause.count_flips_falsify_eq_count_tt, 
+      clause.count_flips_comm] at h,
+    have falsify_mem := (even_flips_iff_mem_direct_xor_of_map_var_eq 
+      (clause.falsify_map_var_eq α (map var g))).mp h,
+    have falsify_eval := clause.falsify_eval_ff α (map var g),
+    have := eval_tt_iff_forall_clause_eval_tt.mp ha,
+    rw this (clause.falsify α (map var g)) falsify_mem at falsify_eval,
+    contradiction },
+  { rintros ⟨α, ha⟩, use α,
+    simp [eval_eq_bodd_count_tt] at ha,
+    apply eval_tt_iff_forall_clause_eval_tt.mpr,
+    intros c hc,
+    have mve := map_var_eq_of_mem_direct_xor hc,
+    have := (even_flips_iff_mem_direct_xor_of_map_var_eq mve).mpr hc,
+    have neqodd := ne_of_eq_ff_of_eq_tt this ha,
+    have neq := ne_of_apply_ne nat.bodd neqodd,
+    rw clause.count_flips_comm at neq,
+    exact clause.eval_tt_of_neq_flips mve.symm (ne.symm neq) }
 end
 
--- Some proofs require that the naive encoding exactly represents xor. Equality is stronger
--- Technically, equality is stronger than equisatisfiability, think about replacing above?
-theorem eval_direct_xor_eq_eval_xor_gate (l : list (literal V)) (α : assignment V) :
-  cnf.eval α (direct_xor l) = xor_gate.eval α l :=
+-- Some proofs require the stronger statement that direct is exactly xor
+theorem eval_direct_xor_eq_eval_xor_gate (g : xor_gate V) (α : assignment V) :
+  cnf.eval α (direct_xor g) = g.eval α :=
 begin
-  cases l with l ls,
-  { simp },
-  { have red := xor_odd_eval_tt2 α (l :: ls),
-    cases h : (xor_gate.eval α (l :: ls));
-    rw [h, ← gate_eq_clause (l :: ls)] at red,
+  cases g with l ls,
+  { simp only [cnf.eval_singleton, eval_nil, direct_xor_nil, clause.eval_nil] },
+  { have he := eval_eq_bodd_count_tt α (l :: ls),
+    cases h : (xor_gate.eval α (l :: ls)),
     { apply eval_ff_iff_exists_clause_eval_ff.mpr,
-      use (falsify α (map var (l :: ls))),
+      use (clause.falsify α (map var (l :: ls))),
       split,
-      { rw ← count_flips_falsify_eq_count_tt α (l :: ls) at red,
-        rw count_flips_comm at red,
-        apply (even_flips_iff_mem_direct_xor (map_var_falsify_eq_list α (map var (l :: ls)))).mp,
-        exact red.symm },
-      { exact falsify_eval_ff α (map var (l :: ls)) } },
-    { apply eval_tt_iff_forall_clause_eval_tt.mpr,
+      { rw [← clause.count_flips_falsify_eq_count_tt α (l :: ls),
+            clause.count_flips_comm] at he,
+        apply (even_flips_iff_mem_direct_xor_of_map_var_eq 
+          (clause.falsify_map_var_eq α (map var (l :: ls)))).mp,
+        rw ← h,
+        exact he.symm },
+      { exact clause.falsify_eval_ff α (map var (l :: ls)) } },
+    { rw h at he,
+      apply eval_tt_iff_forall_clause_eval_tt.mpr,
       intros c hc,
       have mve := map_var_eq_of_mem_direct_xor hc,
-      have neqodd := neq_of_ff_of_tt (eq.symm red) ((even_flips_iff_mem_direct_xor mve).mpr hc),
+      have neqodd := ne_of_eq_ff_of_eq_tt
+        ((even_flips_iff_mem_direct_xor_of_map_var_eq mve).mpr hc) he.symm,
       have neq := ne_of_apply_ne nat.bodd neqodd,
-      rw count_flips_comm at neq,
-      exact eval_tt_of_neq_flips mve.symm neq }
-  }
+      rw clause.count_flips_comm at neq,
+      exact clause.eval_tt_of_neq_flips mve.symm (ne.symm neq) } }
 end
 
-theorem vars_cnf_subset_xor {ls : list (literal V)} :
-  ls ≠ [] → cnf.vars (direct_xor ls) ⊆ (map var ls) :=
+/-
+theorem vars_direct_xor (g : xor_gate V) : cnf.vars (direct_xor g) = vars g :=
 begin
-  intro h,
-  cases ls,
-  { contradiction },
-  { intros n hn,
-    rcases cnf.exists_mem_clause_of_mem_vars hn with ⟨c, hcnf, hc⟩,
-    simp [← map_var_eq_of_mem_direct_xor hcnf, mem_vars_iff_mem_map_vars, hc] }
+  induction g with v vs ih,
+  { simp only [cnf.vars_singleton, direct_xor_nil, vars_nil, clause.vars_nil] },
+  { }
 end
-
-theorem vars_direct_xor_subset_vars {l : list (literal V)} :
-  l ≠ [] → cnf.vars (direct_xor l) ⊆ clause.vars l :=
-assume h, subset.trans (vars_cnf_subset_xor h) (map_var_subset_of_vars l)
+-/
 
 end direct_encoding
 

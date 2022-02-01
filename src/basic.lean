@@ -20,6 +20,11 @@ variables {α : Type u} {β : Type v}
 
 /-! # Boolean logic -/
 
+/- General -/
+
+theorem ne_of_eq_ff_of_eq_tt {a b : bool} : a = ff → b = tt → a ≠ b :=
+assume h₁ h₂, by { rw [h₁, h₂], intro h, contradiction }
+
 /- bxor -/
 
 notation a ` ⊕ ` b := bxor a b
@@ -85,6 +90,21 @@ begin
     apply or.by_cases (decidable.lt_or_eq_of_le (nat.le_of_lt_succ h₁)),
     { intros, apply ih, assumption },
     { intro hlen, have := h m, rw hlen at this, exact this ih } }
+end
+
+theorem exists_append_of_gt_length {l : list α} {n : nat} : 
+  length l > n → ∃ (l₁ l₂ : list α), l₁ ++ l₂ = l ∧ length l₁ = n :=
+begin
+  induction n with n ih,
+  { intro h, use [nil, l, nil_append l, rfl] },
+  { intro h,
+    rcases ih (nat.lt_of_succ_lt h) with ⟨l₁, l₂, rfl, hl₁⟩,
+    cases l₂ with l₂h hl₂t,
+    { simp [hl₁] at h,
+      exact absurd h (nat.not_succ_lt_self) },
+    { use [l₁ ++ [l₂h], hl₂t],
+      simp only [hl₁, eq_self_iff_true, length, singleton_append, 
+        append_assoc, and_self, length_append] } }
 end
 
 /- fold -/
@@ -167,6 +187,14 @@ section nat
 open nat
 
 variables {f : α → nat} {l : list nat} {n m : nat}
+
+/- General -/
+
+theorem ne_succ_add (n m : nat) : n.succ + m ≠ n :=
+begin
+  rw [succ_eq_add_one, add_assoc, ← succ_eq_one_add],
+  exact ne_of_gt (lt_add_of_pos_right n (succ_pos m))
+end
 
 section max_nat
 
