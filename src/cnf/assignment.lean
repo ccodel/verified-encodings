@@ -169,23 +169,23 @@ end
 /-! # ite -/
 
 -- When a variable is in the set, uses the first assignment. Else, the second.
-protected def ite (α₁ α₂ : assignment V) (s : finset V) : assignment V :=
+protected def ite (s : finset V) (α₁ α₂ : assignment V) : assignment V :=
   λ v, if v ∈ s then α₁ v else α₂ v
 
 @[simp] theorem ite_nil (α₁ α₂ : assignment V) (v : V) : 
-  (assignment.ite α₁ α₂ ∅) v = α₂ v :=
+  (assignment.ite ∅ α₁ α₂) v = α₂ v :=
 by simp [assignment.ite]
 
 theorem ite_pos (α₁ α₂ : assignment V) {s : finset V} {v : V} :
-  v ∈ s → (assignment.ite α₁ α₂ s) v = α₁ v :=
+  v ∈ s → (assignment.ite s α₁ α₂) v = α₁ v :=
 assume h, by simp [assignment.ite, h]
 
 theorem ite_neg (α₁ α₂ : assignment V) {s : finset V} {v : V} :
-  v ∉ s → (assignment.ite α₁ α₂ s) v = α₂ v :=
+  v ∉ s → (assignment.ite s α₁ α₂) v = α₂ v :=
 assume h, by simp [assignment.ite, h]
 
 theorem ite_pos_lit (α₁ α₂ : assignment V) {s : finset V} {l : literal V} :
-  l.var ∈ s → literal.eval (assignment.ite α₁ α₂ s) l = literal.eval α₁ l :=
+  l.var ∈ s → literal.eval (assignment.ite s α₁ α₂) l = literal.eval α₁ l :=
 begin
   cases l,
   { simp [literal.var, literal.eval], exact ite_pos α₁ α₂ },
@@ -194,7 +194,7 @@ begin
 end
 
 theorem ite_neg_lit (α₁ α₂ : assignment V) {s : finset V} {l : literal V} :
-  l.var ∉ s → literal.eval (assignment.ite α₁ α₂ s) l = literal.eval α₂ l :=
+  l.var ∉ s → literal.eval (assignment.ite s α₁ α₂) l = literal.eval α₂ l :=
 begin
   cases l,
   { simp [literal.var, literal.eval], exact ite_neg α₁ α₂ },
@@ -203,11 +203,11 @@ begin
 end
 
 theorem eqod_ite_of_disjoint (α₁ α₂ : assignment V) {s₁ s₂ : finset V} :
-  disjoint s₁ s₂ → (α₂ ≡s₂≡ (assignment.ite α₁ α₂ s₁)) :=
+  disjoint s₁ s₂ → (α₂ ≡s₂≡ (assignment.ite s₁ α₁ α₂)) :=
 assume h v hv, by simp [assignment.ite, disjoint_right.mp h hv]
 
 theorem eqod_ite_of_subset (α₁ α₂ : assignment V) {s₁ s₂ : finset V} :
-  s₂ ⊆ s₁ → (α₁ ≡s₂≡ (assignment.ite α₁ α₂ s₁)) :=
+  s₂ ⊆ s₁ → (α₁ ≡s₂≡ (assignment.ite s₁ α₁ α₂)) :=
 assume h v hv, by simp [assignment.ite, h hv]
 
 /-! # Constant assignments -/

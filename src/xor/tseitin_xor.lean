@@ -23,7 +23,7 @@ variables {V : Type u} [inhabited V] [decidable_eq V]
 open literal
 open clause
 open cnf
-open xor_gate
+open nxor
 
 open list
 open assignment
@@ -31,43 +31,53 @@ open function
 
 namespace tseitin_xor
 
-lemma disjoint_fresh_of_disjoint {x : xor_gate V} {g : gensym V} {k : nat} :
-  k ≥ 3 → disjoint g.stock x.vars → 
-    disjoint g.fresh.2.stock (xor_gate.vars ((Pos g.fresh.1) :: (x.drop k))) :=
+lemma disjoint_fresh_of_disjoint {x : nxor V} {g : gensym V} {k : nat} (hk : k ≥ 3) :
+  disjoint g.stock x.vars → 
+  disjoint g.fresh.2.stock (nxor.vars ((Pos g.fresh.1) :: (x.drop (k - 1)))) :=
 begin
-  sorry,
+  intro h,
+  apply set.disjoint_right.mpr,
+  intros v hv,
+  simp [vars, clause.vars] at hv,
+  rcases hv with rfl | hv,
+  { rw var,
+    exact gensym.fresh_not_mem_fresh_stock g },
+  { intro hcon,
+    have := clause.vars_subset_of_subset (drop_subset (k - 1) x),
+    rw set.disjoint_right at h,
+    exact absurd ((gensym.fresh_stock_subset g) hcon) (h (this hv)) }
 end
 
-lemma drop_len_lt {k : nat} {x : xor_gate V} (l : literal V) :
-  k ≥ 3 → length x > k → length (l :: (x.drop k)) < length x :=
+lemma drop_len_lt {k : nat} {x : nxor V} (l : literal V) :
+  k ≥ 3 → length x > k → length (l :: (x.drop (k - 1))) < length x :=
 begin
   intros hk hx,
   rw length_cons,
   rcases exists_append_of_gt_length hx with ⟨x₁, x₂, rfl, hx₁⟩,
-  rw [← hx₁, ← add_zero x₁.length, length_append, drop_append 0, add_comm],
-  unfold drop,
-  apply add_lt_add_right,
-  rw ← hx₁ at hk,
-  exact nat.lt_of_succ_lt (nat.succ_le_iff.mp hk)
+  simp only [hx₁, length_drop, length_append],
+  rw [add_comm k x₂.length, nat.add_sub_assoc (nat.sub_le k 1),
+      nat.sub_sub_self (nat.le_of_add_le_right hk), add_assoc],
+  apply add_lt_add_left,
+  exact nat.succ_le_iff.mp hk,
 end
 
-def linear_xor {k : nat} (hk : k ≥ 3) : Π (x : xor_gate V), Π (g : gensym V),
+-- Note: x and g can be made implicit args, but explicit feels better
+def linear_xor {k : nat} (hk : k ≥ 3) : Π (x : nxor V), Π (g : gensym V),
   (disjoint g.stock x.vars) → cnf V
-| [] _ _   := [[]]
 | x g hdis := if h : length x ≤ k then direct_xor x else
-                have length ((Pos g.fresh.1) :: (x.drop k)) < length x,
+                have length ((Pos g.fresh.1) :: (x.drop (k - 1))) < length x,
                   from (drop_len_lt _ hk (not_le.mp h)),
-                (direct_xor (x.take k ++ [(Neg g.fresh.1)])) ++
-                (linear_xor ((Pos g.fresh.1) :: (x.drop k)) (g.fresh.2)
+                (direct_xor (x.take (k - 1) ++ [(Neg g.fresh.1)])) ++
+                (linear_xor ((Pos g.fresh.1) :: (x.drop (k - 1))) (g.fresh.2)
                 (disjoint_fresh_of_disjoint hk hdis))
 using_well_founded {
   rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ.1)⟩],
   dec_tac := tactic.assumption
 }
 
-def linear_xor2 {k : nat} (hk : k ≥ 3) (x : xor_gate V) (g : gensym V)
-  (hg : disjoint g.stock x.vars) : xor_gate V → cnf V
-| [] := [[]]
+/-
+def linear_xor2 {k : nat} (hk : k ≥ 3) (x : nxor V) (g : gensym V)
+  (hg : disjoint g.stock x.vars) : nxor V → cnf V
 | x₁ := if h : length x₁ ≤ k then direct_xor x₁ else
                 have length ((Pos g.fresh.1) :: (x₁.drop k)) < length x₁,
                   from (drop_len_lt _ hk (not_le.mp h)),
@@ -77,41 +87,119 @@ using_well_founded {
   rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ)⟩],
   dec_tac := tactic.assumption
 }
-
--- Unfolding this does work (when the supporting lemmas are in place)
-/-
-def txor3 : Π (l : list (literal V)), Π (f : nat → V),
-  (injective f) → (∀ v ∈ set.range f, v ∉ (clause.vars l)) → cnf V
-| [] _ _ _ := [[]]
-| l f hinj him := if h : length l ≤ 3 then xor_cnf l else
-                  have length (l.drop 3 ++ [Pos (f 0)]) < length l,
-                    from (dropn_len _ three_gt_one (not_le.mp h)),
-                  (xor_cnf (l.take 3 ++ [Neg (f 0)])) ++
-                  (txor3 (l.drop 3 ++ [Pos (f 0)]) (λ n, f (n + 1)) 
-                    (restriction_injective hinj) (res_disjoint hinj him))
-using_well_founded {
-  rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ.1)⟩],
-  dec_tac := tactic.assumption
-}
 -/
 
---def test (a : α) : Π (l : list α), length l > 0 → α
---| [] _ := a
---| l hl := if h : length l = 1 then l.nth 0 else
---            test (l.drop 1) (sorry)
-
-lemma linear_base_case {k : nat} (hk : k ≥ 3) (x : xor_gate V) {g : gensym V}
+lemma linear_base_case {k : nat} (hk : k ≥ 3) {x : nxor V} {g : gensym V}
   (hdis : disjoint g.stock x.vars) : 
-  length x ≤ k → linear_xor2 hk x g hdis x = direct_xor x :=
+  length x ≤ k → linear_xor hk x g hdis = direct_xor x :=
+assume h, by { rw linear_xor, simp only [h, if_true] }
+
+lemma eqsat_forward {k : nat} (hk : k ≥ 3) {x : nxor V} {g : gensym V}
+  (hdis : disjoint g.stock x.vars) {α : assignment V} :
+  cnf.eval α (linear_xor hk x g hdis) = tt → cnf.eval α (direct_xor x) = tt :=
 begin
-  cases x,
-  { simp [linear_xor2] },
-  {
-    intro h,
-    unfold linear_xor2,
+  induction x using strong_induction_on_lists with x ih generalizing g,
+  by_cases hx : length x ≤ k,
+  { rw linear_base_case hk hdis hx, exact id },
+  { intro h,
+    rw linear_xor at h,
+    simp [hx, cnf.eval_append] at h,
+    rcases h with ⟨hdir, hrec⟩,
+    rw not_le at hx,
+    have h₁ := drop_len_lt (Pos g.fresh.1) hk hx,
+    have h₂ := disjoint_fresh_of_disjoint hk hdis,
+    have ihred := ih _ h₁ h₂ hrec,
+    rw [eval_direct_xor_eq_eval_nxor, eval_eq_bodd_count_tt] at ihred,
+    rw [eval_direct_xor_eq_eval_nxor, eval_eq_bodd_count_tt] at hdir,
+    rw [eval_direct_xor_eq_eval_nxor, eval_eq_bodd_count_tt],
+    have := take_append_drop (k - 1) x,
+    have := congr_arg ((clause.count_tt α)) this,
+    have := congr_arg (nat.bodd) this,
+    cases hnew : (α g.fresh.1),
+    { simp [count_tt_cons, hnew, literal.eval] at ihred,
+      simp [count_tt_append, hnew, literal.eval] at hdir,
+      rw [count_tt_append, nat.bodd_add, hdir, ihred, ff_bxor] at this,
+      exact this.symm },
+    { simp [count_tt_cons, hnew, literal.eval] at ihred,
+      simp [count_tt_append, hnew, literal.eval] at hdir,
+      rw [count_tt_append, nat.bodd_add, hdir, ihred, bxor_ff] at this,
+      exact this.symm } }
+end
+
+lemma eqsat_backward {k : nat} (hk : k ≥ 3) {x : nxor V} {g : gensym V}
+  (hdis : disjoint g.stock x.vars) {α : assignment V} :
+  cnf.eval α (direct_xor x) = tt → (∃ (α₂ : assignment V), 
+  cnf.eval α₂ (linear_xor hk x g hdis) = tt ∧ eqod α α₂ x.vars) :=
+begin
+  induction x using strong_induction_on_lists with x ih generalizing g α,
+  by_cases hx : length x ≤ k,
+  { intro h, use α, rw linear_base_case hk hdis hx,
+    exact ⟨h, eqod.refl _ _⟩ },
+  { intro h,
+
+    rw [eval_direct_xor_eq_eval_nxor, eval_eq_bodd_count_tt] at h,
+    have := take_append_drop (k - 1) x,
+    rw [← this, count_tt_append, nat.bodd_add] at h,
+
+    -- Proof that fresh not in x.vars
+    have := set.disjoint_left.mp hdis (gensym.fresh_mem_stock g),
+
+
+    have h₁ := drop_len_lt (Pos g.fresh.1) hk (not_le.mp hx),
+    have h₂ := disjoint_fresh_of_disjoint hk hdis,
+    have ihred := ih _ h₁ h₂,
+
+
+
+    cases hc : nat.bodd (clause.count_tt α (take (k - 1) x)),
+    {
+      rw [hc, ff_bxor] at h,
+      have : clause.count_tt (assignment.ite (nxor.vars x) α all_ff) ((Pos g.fresh.1) :: (drop (k - 1) x)) = clause.count_tt α (drop (k - 1) x),
+      {
+        rw count_tt_cons,
+
+      }
+    },
+    {
+
+    }
+
+
+
   }
 end
 
+theorem linear_xor_eqsat {k : nat} (hk : k ≥ 3) {x : nxor V} {g : gensym V}
+  (hdis : disjoint g.stock x.vars) :
+  assignment.eqsat (λ α, cnf.eval α (linear_xor hk x g hdis)) 
+                   (λ α, cnf.eval α (direct_xor x)) :=
+begin
+  split,
+  { rintros ⟨α, hl⟩,
+    use α, simp at *,
+    exact eqsat_forward hk hdis hl },
+  { induction x using strong_induction_on_lists with x ih generalizing g,
+    rintros ⟨α, hd⟩,
+    simp at *,
+    by_cases hx : length x ≤ k,
+    { use α,
+      rw linear_xor,
+      simp only [hx, hd, if_true] },
+    { rw linear_xor,
+      simp [hx],
+      rw not_le at hx,
+      have h₁ := drop_len_lt (Pos g.fresh.1) hk hx,
+      have h₂ := disjoint_fresh_of_disjoint hk hdis,
+
+      
+
+      have ihred := ih _ h₁ h₂ α,
+
+      
+    }
+
+  }
+end
 /-
 lemma restriction_injective {f : nat → V} (hf : injective f) :
   injective (λ n, f (n + 1)) :=
@@ -234,12 +322,12 @@ begin
     have hcv_in : c.var ∈ clause.vars [a, b, c],
       from mem_vars_of_mem_clause hc_in,
 
-    rw [c_to_app, eval_xor_cnf_eq_eval_xor_gate, xor_gate.eval_append] at h,
+    rw [c_to_app, eval_xor_cnf_eq_eval_nxor, nxor.eval_append] at h,
     
     --have ihred := ih (L ++ [Pos (f 0)]) (dropn_len _ three_gt_one (not_le.mp hlen)) 
     --  (restriction_injective hinj) (res_disjoint hinj him),
 
-    cases h3eval : xor_gate.eval α [a, b, c],
+    cases h3eval : nxor.eval α [a, b, c],
     { simp [h3eval] at h,
       have heval : literal.eval (set_var α (f 0) ff) (Pos (f 0)) = ff,
       { simp [literal.eval, set_var] },
@@ -262,8 +350,8 @@ begin
         exact (vars_append_subset_right L _) this },
 
       have : cnf.eval (set_var α (f 0) ff) (xor_cnf (L ++ [Pos (f 0)])) = tt,
-      { rw eval_xor_cnf_eq_eval_xor_gate,
-        rw xor_gate.eval_append,
+      { rw eval_xor_cnf_eq_eval_nxor,
+        rw nxor.eval_append,
         simp [literal.eval, heval],
         have : α ≡[clause.vars L]≡ (set_var α (f 0) ff),
           from eqod_set_var_of_not_mem α (f 0) ff (clause.vars L) hf0_not_mem,
@@ -280,9 +368,9 @@ begin
       {
         split,
         { have : [a, b, c, Neg (f 0)] = [a, b, c] ++ [Neg (f 0)], simp,
-          rw [this, eval_xor_cnf_eq_eval_xor_gate, xor_gate.eval_append],
-          rw xor_gate.eval_singleton,
-          simp [xor_gate.eval_cons, literal.eval],
+          rw [this, eval_xor_cnf_eq_eval_nxor, nxor.eval_append],
+          rw nxor.eval_singleton,
+          simp [nxor.eval_cons, literal.eval],
           rw ite_pos_of_lit _ _ hav_in, -- This is overly manual...
           rw ite_pos_of_lit _ _ hbv_in,
           rw ite_pos_of_lit _ _ hcv_in,
@@ -292,7 +380,7 @@ begin
           rw ← bxor_tt_right (literal.eval α c),
           simp only [← bool.bxor_assoc],
           rw bxor_tt_right,
-          simp [xor_gate.eval_cons] at h3eval,
+          simp [nxor.eval_cons] at h3eval,
           simp [h3eval] },
         {
           -- Theorems on variables, subsets, etc.
@@ -356,33 +444,33 @@ begin
 
       have heqod₂ := eqod_subset_of_eqod (vars_append_subset_left L ([Pos (f 0)])) heqod,
 
-      rw eval_xor_cnf_eq_eval_xor_gate,
-      rw eval_xor_cnf_eq_eval_xor_gate at h₁,
-      rw eval_xor_cnf_eq_eval_xor_gate at ha₂,
-      rw xor_gate.eval_append,
-      rw xor_gate.eval_append at ha₂,
+      rw eval_xor_cnf_eq_eval_nxor,
+      rw eval_xor_cnf_eq_eval_nxor at h₁,
+      rw eval_xor_cnf_eq_eval_nxor at ha₂,
+      rw nxor.eval_append,
+      rw nxor.eval_append at ha₂,
       cases heval : α₂ (f 0),
       { simp [literal.eval, heval] at ha₂,
-        simp only [xor_gate.eval_cons, literal.eval, heval, hf0_eval] at h₁,
-        rw xor_gate.eval_nil at h₁,
+        simp only [nxor.eval_cons, literal.eval, heval, hf0_eval] at h₁,
+        rw nxor.eval_nil at h₁,
         rw bool.bxor_ff_right at h₁,
         simp only [← bool.bxor_assoc] at h₁, -- clean up manual
         rw bool.bnot_false at h₁,
         rw bxor_tt_right at h₁,
         simp at h₁,
         rw equiv_on_domain_for_xor heqod₂,
-        simp [ha₂, xor_gate.eval_cons, h₁] },
+        simp [ha₂, nxor.eval_cons, h₁] },
       {
         simp [literal.eval, heval] at ha₂,
-        simp only [xor_gate.eval_cons, literal.eval, heval, hf0_eval] at h₁,
-        rw xor_gate.eval_nil at h₁,
+        simp only [nxor.eval_cons, literal.eval, heval, hf0_eval] at h₁,
+        rw nxor.eval_nil at h₁,
         rw bool.bxor_ff_right at h₁,
         simp only [← bool.bxor_assoc] at h₁, -- clean up manual
         rw bool.bnot_true at h₁,
         rw bool.bxor_ff_right at h₁,
         simp at h₁,
         rw equiv_on_domain_for_xor heqod₂,
-        simp [ha₂, xor_gate.eval_cons, h₁] } },
+        simp [ha₂, nxor.eval_cons, h₁] } },
     { exact eqod.refl α _ } }
 end
 
@@ -396,10 +484,5 @@ begin
   use [α₂, ha₂]
 end
 -/
-
-theorem useless {a : nat} : a > 1 → a > 0 :=
-begin
-  sorry, 
-end
 
 end tseitin_xor

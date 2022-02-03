@@ -1,5 +1,5 @@
 /-
-This file defines the XOR gate on n polymorphic variables, as well as
+This file defines the XOR gate on n variables, as well as
 general properties of evaluation of XORs.
 
 Authors: Cayden Codel, Marijn Heule, Jeremy Avigad
@@ -21,13 +21,14 @@ universe u
 -- Represents the parametric type of the variable stored in the literal
 variables {V : Type u} [decidable_eq V] [inhabited V]
 
-/- An n-literal XOR gate is a list of those literals.
-   Unfortunately, "xor" was already declared, so we append "_gate". -/
-def xor_gate (V : Type u) := list (literal V)
+/- An n-literal XOR function is a list of those literals. -/
+-- Unfortunately, "xor" was already defined, so "n"xor to mean n literals
+def nxor (V : Type u) := list (literal V)
 
+-- Not to be confused with the XNOR gate
 -- See the note in cnf/clause.lean for discussion of list vs. set typing
 
-namespace xor_gate
+namespace nxor
 
 open nat
 open list
@@ -36,28 +37,28 @@ open clause
 /-! # Properties -/
 
 instance : inhabited (clause V) := ⟨[arbitrary (literal V)]⟩
-instance : has_append (xor_gate V) := ⟨list.append⟩
-instance : has_mem (literal V) (xor_gate V) := ⟨list.mem⟩
+instance : has_append (nxor V) := ⟨list.append⟩
+instance : has_mem (literal V) (nxor V) := ⟨list.mem⟩
 
 /-! # eval -/
 section eval
 
-variables (α : assignment V) (g : xor_gate V) (l : literal V)
+variables (α : assignment V) (g : nxor V) (l : literal V)
 
 /- Evaluate the variables under the assignment according to typical XOR -/
 protected def eval : bool :=
   g.foldr (λ l b, b ⊕ l.eval α) ff
 
-@[simp] theorem eval_nil : xor_gate.eval α [] = ff := rfl
+@[simp] theorem eval_nil : nxor.eval α [] = ff := rfl
 
-@[simp] theorem eval_singleton : xor_gate.eval α [l] = l.eval α :=
-by simp only [xor_gate.eval, bool.bxor_ff_left, foldr]
+@[simp] theorem eval_singleton : nxor.eval α [l] = l.eval α :=
+by simp only [nxor.eval, bool.bxor_ff_left, foldr]
 
-theorem eval_cons : xor_gate.eval α (l :: g) = bxor (l.eval α) (g.eval α) :=
-by simp only [xor_gate.eval, foldr, bool.bxor_comm]
+theorem eval_cons : nxor.eval α (l :: g) = bxor (l.eval α) (g.eval α) :=
+by simp only [nxor.eval, foldr, bool.bxor_comm]
 
-theorem eval_append (g₁ g₂ : xor_gate V) : 
-  xor_gate.eval α (g₁ ++ g₂) = bxor (g₁.eval α) (g₂.eval α) :=
+theorem eval_append (g₁ g₂ : nxor V) : 
+  nxor.eval α (g₁ ++ g₂) = bxor (g₁.eval α) (g₂.eval α) :=
 begin
   induction g₁ with l ls ih,
   { simp only [bool.bxor_ff_left, eval_nil, nil_append] },
@@ -68,9 +69,9 @@ end
 theorem eval_eq_bodd_count_tt : g.eval α = bodd (clause.count_tt α g) :=
 begin
   induction g with l ls ih,
-  { simp only [bodd_zero, eval_nil, clause.count_tt_nil] },
+  { simp only [bodd_zero, eval_nil, count_tt_nil] },
   { cases h : (l.eval α);
-    { simp [xor_gate.eval_cons, count_tt_cons, h, ih] } }
+    { simp [nxor.eval_cons, count_tt_cons, h, ih] } }
 end
 
 end eval
@@ -78,43 +79,43 @@ end eval
 /-! # vars -/
 section vars
 
-variables {g : xor_gate V} {l : literal V} {v : V}
+variables {g : nxor V} {l : literal V} {v : V}
 
-/- For now, since the implementation of clause and xor_gate are the same,
+/- For now, since the implementation of clause and nxor are the same,
    using clause.lean's version of vars saves on space for redundant theorems.
-   If the implementation of clause or xor_gate changes, this definition will
+   If the implementation of clause or nxor changes, this definition will
    need to be updated accordingly. -/
-def vars (g : xor_gate V) : finset V := clause.vars g
+def vars (g : nxor V) : finset V := clause.vars g
 
-@[simp] theorem vars_nil : xor_gate.vars ([] : xor_gate V) = ∅ := rfl
+@[simp] theorem vars_nil : nxor.vars ([] : nxor V) = ∅ := rfl
 
-@[simp] theorem vars_singleton (l : literal V) : xor_gate.vars [l] = {l.var} :=
+@[simp] theorem vars_singleton (l : literal V) : nxor.vars [l] = {l.var} :=
 clause.vars_singleton l
 
-theorem mem_vars_cons_of_mem_vars : v ∈ g.vars → v ∈ xor_gate.vars (l :: g) :=
+theorem mem_vars_cons_of_mem_vars : v ∈ g.vars → v ∈ nxor.vars (l :: g) :=
 clause.mem_vars_cons_of_mem_vars l
 
 theorem mem_vars_of_mem : l ∈ g → l.var ∈ g.vars :=
 clause.mem_vars_of_mem
 
-theorem vars_subset_of_vars_cons (l : literal V) (g : xor_gate V) :
-  g.vars ⊆ xor_gate.vars (l :: g) :=
+theorem vars_subset_of_vars_cons (l : literal V) (g : nxor V) :
+  g.vars ⊆ nxor.vars (l :: g) :=
 finset.subset_union_right _ _
 
 -- Other theorems from clause.vars possible, if needed
 
 end vars
 
-end xor_gate
+end nxor
 
-/-! # eqod for xor_gate -/
+/-! # eqod for nxor -/
 
 namespace assignment
 
 open list
-open xor_gate
+open nxor
 
-theorem eval_eq_xor_gate_of_eqod {α₁ α₂ : assignment V} {g : xor_gate V} :
+theorem eval_eq_nxor_of_eqod {α₁ α₂ : assignment V} {g : nxor V} :
   (α₁ ≡g.vars≡ α₂) → g.eval α₁ = g.eval α₂ :=
 begin
   induction g with l ls ih,

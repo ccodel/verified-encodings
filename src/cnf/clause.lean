@@ -247,6 +247,17 @@ theorem count_neg_cons (l : literal V) (c : clause V) :
   count_neg (l :: c) = cond l.is_neg (1 + c.count_neg) c.count_neg :=
 by cases l; { simp [count_neg, literal.is_neg, add_comm] }
 
+theorem count_tt_append (α : assignment V) (c₁ c₂ : clause V) :
+  clause.count_tt α (c₁ ++ c₂) = clause.count_tt α c₁ + clause.count_tt α c₂ :=
+begin
+  induction c₁ with l ls ih,
+  { simp only [count_tt_nil, zero_add, nil_append] },
+  { cases h : (literal.eval α l);
+    { simp [count_tt_cons, h, ih, add_assoc] } }
+end
+
+-- Can make analogous append theorems for each of the others
+
 -- All the above four functions are capped by the length of the clause
 theorem count_tt_le_length (α : assignment V) (c : clause V) :
   c.count_tt α ≤ c.length :=
@@ -621,7 +632,7 @@ assume hc hcount,
 -- Parity reasoning based on flips rather than negs
 -- If a clause evaluates to false, then any clause that can be made by flipping a
 -- variable in that clause will evaluate to true
-theorem eval_tt_of_neq_flips {α : assignment V} {c₁ c₂ : clause V} :
+theorem eval_tt_of_ne_flips {α : assignment V} {c₁ c₂ : clause V} :
   map var c₁ = map var c₂ → 
     clause.count_tt α c₁ ≠ count_flips c₁ c₂ → c₂.eval α = tt :=
 begin
@@ -808,5 +819,22 @@ begin
     use [l, hl],
     exact htt ▸ eval_eq_of_eqod_of_var_mem h (mem_vars_of_mem hl) }
 end
+
+-- Can replace α in count_tt if eqod
+theorem count_tt_eq_of_eqod {α₁ α₂ : assignment V} {c : clause V} :
+  (α₁ ≡c.vars≡ α₂) → clause.count_tt α₁ c = clause.count_tt α₂ c :=
+begin
+  induction c with l ls ih,
+  { simp only [count_tt_nil, eqod_nil, vars_nil, forall_true_left] },
+  { intro h,
+    rw clause.vars at h,
+    have ihred := ih (eqod_right_of_eqod_union h),
+    cases l;
+    { have := eqod_left_of_eqod_union h,
+      rw literal.var at this,
+      simp [count_tt_cons, literal.eval, 
+        this l (finset.mem_singleton_self l), ihred] } }
+end
+
 
 end assignment
