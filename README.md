@@ -14,3 +14,9 @@ To install, clone the repo, then type
 ```
 at the root directory to install the mathematical libraries and other components of Lean that are needed. You will need Lean installed. Visit this site (site URL?) for instructions on how to install Lean.
 
+### Gitpod
+If you have an account with Gitpod or are willing to sign up for one, you can browse the repository in your browser,
+running Lean in the cloud.
+
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/ccodel/verified-encodings)
+
