@@ -3,3 +3,4 @@
 
 # Lean specific files
 _target/*
+*.olean

@@ -21,29 +21,29 @@ universe u
 -- Represents the parametric type of the variable stored in the literal
 variables {V : Type u} [decidable_eq V] [inhabited V]
 
-namespace nxor
+namespace Xor
 
 open literal
 open clause -- TODO opening clause doesn't seem to open library...
 open cnf
 open list
-open nxor
+open Xor
 open explode
 open nat
 
 /-! # Direct encoding -/
 section direct_encoding
 
-variables {g : nxor V} {c : clause V}
+variables {g : Xor V} {c : clause V}
 
 /- The direct encoding is the set of all possible clauses with an even number 
    of negations on the provided literals in a single CNF formula. -/
-def direct_xor : nxor V → cnf V
+def direct_xor : Xor V → cnf V
 | []        := [[]]
 | (l :: ls) := (explode (map var ls)).map 
       (λ c, ite (!bodd (c.count_flips ls)) (l :: c) (l.flip :: c))
 
-@[simp] theorem direct_xor_nil : direct_xor ([] : nxor V) = [[]] := rfl
+@[simp] theorem direct_xor_nil : direct_xor ([] : Xor V) = [[]] := rfl
 
 @[simp] theorem direct_xor_singleton (l : literal V) : direct_xor [l] = [[l]] :=
 by simp [direct_xor]
@@ -77,7 +77,7 @@ end
 theorem length_direct_xor_pos : g ≠ [] → length (direct_xor g) > 0 :=
 assume h, by simp only [length_direct_xor h, succ_pos', gt_iff_lt, pow_pos]
 
-theorem exists_mem_direct_xor (g : nxor V) : 
+theorem exists_mem_direct_xor (g : Xor V) : 
   ∃ (c : clause V), c ∈ direct_xor g :=
 begin
   cases g with l ls,
@@ -86,7 +86,7 @@ begin
 end
 
 -- These theorems begin to be dependent on order of encoding
--- If the underlying type of nxor changes to (fin)set, must update
+-- If the underlying type of Xor changes to (fin)set, must update
 theorem map_var_eq_of_mem_direct_xor :
   c ∈ direct_xor g → map var c = map var g :=
 begin
@@ -145,7 +145,7 @@ begin
     exact (even_flips_iff_mem_direct_xor_of_map_var_eq hc).mp }
 end
 
-theorem mem_direct_xor_self (g : nxor V) : g ∈ (direct_xor g) :=
+theorem mem_direct_xor_self (g : Xor V) : g ∈ (direct_xor g) :=
 begin
   have hcount := clause.count_flips_self g,
   have := nat.bodd_zero,
@@ -154,13 +154,13 @@ begin
 end
 
 -- Some proofs require the stronger statement that direct is exactly xor
-theorem eval_direct_xor_eq_eval_nxor (g : nxor V) (τ : assignment V) :
+theorem eval_direct_xor_eq_eval_Xor (g : Xor V) (τ : assignment V) :
   (direct_xor g).eval τ = g.eval τ :=
 begin
   cases g with l ls,
   { simp only [cnf.eval_singleton, eval_nil, direct_xor_nil, clause.eval_nil] },
   { have he := eval_eq_bodd_count_tt τ (l :: ls),
-    cases h : (nxor.eval τ (l :: ls)),
+    cases h : (Xor.eval τ (l :: ls)),
     { apply eval_ff_iff_exists_clause_eval_ff.mpr,
       use (clause.falsify τ (map var (l :: ls))),
       split,
@@ -182,7 +182,7 @@ begin
       exact clause.eval_tt_of_ne_flips mve.symm (ne.symm neq) } }
 end
 
-theorem vars_direct_xor (g : nxor V) : (direct_xor g).vars = g.vars :=
+theorem vars_direct_xor (g : Xor V) : (direct_xor g).vars = g.vars :=
 begin
   cases g with l ls,
   { simp only [cnf.vars_singleton, direct_xor_nil, vars_nil, clause.vars_nil] },
@@ -202,4 +202,4 @@ end
 
 end direct_encoding
 
-end nxor
+end Xor

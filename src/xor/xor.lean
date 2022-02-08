@@ -23,12 +23,12 @@ variables {V : Type u} [decidable_eq V] [inhabited V]
 
 /- An n-literal XOR function is a list of those literals. -/
 -- Unfortunately, "xor" was already defined, so "n"xor to mean n literals
-def nxor (V : Type u) := list (literal V)
+def Xor (V : Type u) := list (literal V)
 
 -- Not to be confused with the XNOR gate
 -- See the note in cnf/clause.lean for discussion of list vs. set typing
 
-namespace nxor
+namespace Xor
 
 open nat
 open list
@@ -37,28 +37,28 @@ open clause
 /-! # Properties -/
 
 instance : inhabited (clause V) := ⟨[arbitrary (literal V)]⟩
-instance : has_append (nxor V) := ⟨list.append⟩
-instance : has_mem (literal V) (nxor V) := ⟨list.mem⟩
+instance : has_append (Xor V) := ⟨list.append⟩
+instance : has_mem (literal V) (Xor V) := ⟨list.mem⟩
 
 /-! # eval -/
 section eval
 
-variables (τ : assignment V) (g : nxor V) (l : literal V)
+variables (τ : assignment V) (g : Xor V) (l : literal V)
 
 /- Evaluate the variables under the assignment according to typical XOR -/
 protected def eval : bool :=
   g.foldr (λ l b, b ⊕ l.eval τ) ff
 
-@[simp] theorem eval_nil : nxor.eval τ [] = ff := rfl
+@[simp] theorem eval_nil : Xor.eval τ [] = ff := rfl
 
-@[simp] theorem eval_singleton : nxor.eval τ [l] = l.eval τ :=
-by simp only [nxor.eval, bool.bxor_ff_left, foldr]
+@[simp] theorem eval_singleton : Xor.eval τ [l] = l.eval τ :=
+by simp only [Xor.eval, bool.bxor_ff_left, foldr]
 
-theorem eval_cons : nxor.eval τ (l :: g) = bxor (l.eval τ) (g.eval τ) :=
-by simp only [nxor.eval, foldr, bool.bxor_comm]
+theorem eval_cons : Xor.eval τ (l :: g) = bxor (l.eval τ) (g.eval τ) :=
+by simp only [Xor.eval, foldr, bool.bxor_comm]
 
-theorem eval_append (g₁ g₂ : nxor V) : 
-  nxor.eval τ (g₁ ++ g₂) = bxor (g₁.eval τ) (g₂.eval τ) :=
+theorem eval_append (g₁ g₂ : Xor V) : 
+  Xor.eval τ (g₁ ++ g₂) = bxor (g₁.eval τ) (g₂.eval τ) :=
 begin
   induction g₁ with l ls ih,
   { simp only [bool.bxor_ff_left, eval_nil, nil_append] },
@@ -71,7 +71,7 @@ begin
   induction g with l ls ih,
   { simp only [bodd_zero, eval_nil, count_tt_nil] },
   { cases h : (l.eval τ);
-    { simp [nxor.eval_cons, count_tt_cons, h, ih] } }
+    { simp [Xor.eval_cons, count_tt_cons, h, ih] } }
 end
 
 end eval
@@ -79,43 +79,43 @@ end eval
 /-! # vars -/
 section vars
 
-variables {g : nxor V} {l : literal V} {v : V}
+variables {g : Xor V} {l : literal V} {v : V}
 
-/- For now, since the implementation of clause and nxor are the same,
+/- For now, since the implementation of clause and Xor are the same,
    using clause.lean's version of vars saves on space for redundant theorems.
-   If the implementation of clause or nxor changes, this definition will
+   If the implementation of clause or Xor changes, this definition will
    need to be updated accordingly. -/
-def vars (g : nxor V) : finset V := clause.vars g
+def vars (g : Xor V) : finset V := clause.vars g
 
-@[simp] theorem vars_nil : nxor.vars ([] : nxor V) = ∅ := rfl
+@[simp] theorem vars_nil : Xor.vars ([] : Xor V) = ∅ := rfl
 
-@[simp] theorem vars_singleton (l : literal V) : nxor.vars [l] = {l.var} :=
+@[simp] theorem vars_singleton (l : literal V) : Xor.vars [l] = {l.var} :=
 clause.vars_singleton l
 
-theorem mem_vars_cons_of_mem_vars : v ∈ g.vars → v ∈ nxor.vars (l :: g) :=
+theorem mem_vars_cons_of_mem_vars : v ∈ g.vars → v ∈ Xor.vars (l :: g) :=
 clause.mem_vars_cons_of_mem_vars l
 
 theorem mem_vars_of_mem : l ∈ g → l.var ∈ g.vars :=
 clause.mem_vars_of_mem
 
-theorem vars_subset_of_vars_cons (l : literal V) (g : nxor V) :
-  g.vars ⊆ nxor.vars (l :: g) :=
+theorem vars_subset_of_vars_cons (l : literal V) (g : Xor V) :
+  g.vars ⊆ Xor.vars (l :: g) :=
 finset.subset_union_right _ _
 
 -- Other theorems from clause.vars possible, if needed
 
 end vars
 
-end nxor
+end Xor
 
-/-! # eqod for nxor -/
+/-! # eqod for Xor -/
 
 namespace assignment
 
 open list
-open nxor
+open Xor
 
-theorem eval_eq_nxor_of_eqod {τ₁ τ₂ : assignment V} {g : nxor V} :
+theorem eval_eq_Xor_of_eqod {τ₁ τ₂ : assignment V} {g : Xor V} :
   (τ₁ ≡g.vars≡ τ₂) → g.eval τ₁ = g.eval τ₂ :=
 begin
   induction g with l ls ih,
