@@ -84,8 +84,8 @@ lemma linear_base_case {k : nat} (hk : k ≥ 3) {x : Xor V} {g : gensym V}
   length x ≤ k → linear_xor hk x g hdis = direct_xor x :=
 assume h, by { rw linear_xor, simp only [h, if_true] }
 
-theorem mem_linear_xor_vars_of_mem_vars {k : nat} (hk : k ≥ 3) {x : Xor V} {g : gensym V}
-  (hdis : disjoint g.stock x.vars) {v : V} :
+theorem mem_linear_xor_vars_of_mem_vars {k : nat} (hk : k ≥ 3) {x : Xor V} 
+  {g : gensym V} (hdis : disjoint g.stock x.vars) {v : V} :
   v ∈ x.vars → v ∈ (linear_xor hk x g hdis).vars :=
 begin
   induction x using strong_induction_on_lists with x ih generalizing g,
@@ -339,8 +339,8 @@ lemma pooled_base_case {k : nat} (hk : k ≥ 3) {x : Xor V} {g : gensym V}
   length x ≤ k → pooled_xor hk x g hdis = direct_xor x :=
 assume h, by { rw pooled_xor, simp only [h, if_true] }
 
-theorem mem_pooled_xor_vars_of_mem_vars {k : nat} (hk : k ≥ 3) {x : Xor V} {g : gensym V}
-  (hdis : disjoint g.stock x.vars) {v : V} :
+theorem mem_pooled_xor_vars_of_mem_vars {k : nat} (hk : k ≥ 3) {x : Xor V} 
+  {g : gensym V} (hdis : disjoint g.stock x.vars) {v : V} :
   v ∈ x.vars → v ∈ (pooled_xor hk x g hdis).vars :=
 begin
   induction x using strong_induction_on_lists with x ih generalizing g,
