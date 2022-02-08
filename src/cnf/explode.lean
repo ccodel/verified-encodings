@@ -17,7 +17,7 @@ import data.nat.pow
 universe u
 
 -- Represents the parametric type of the variable stored in the literal
-variables {V : Type u} [decidable_eq V] [inhabited V]
+variables {V : Type*} [decidable_eq V] [inhabited V]
 
 open literal
 open clause

@@ -20,14 +20,14 @@ open list
 
 universe u
 
-variables {α : Type u}-- [decidable_eq α] [inhabited α]
+variables {α : Type*}-- [decidable_eq α] [inhabited α]
 
 /- Essentially, a gensym object only tracks a position along the natural number
    line. When provided with an injective function from the naturals to the
    boolean variable type, the gensym will provably generate fresh variables,
    with respect to those variables already generated.
 -/
-structure gensym (α : Type u) :=
+structure gensym (α : Type*) :=
 (offset : nat)
 (f : nat → α)
 (f_inj : injective f)

@@ -43,22 +43,22 @@ instance : has_mem (literal V) (nxor V) := ⟨list.mem⟩
 /-! # eval -/
 section eval
 
-variables (α : assignment V) (g : nxor V) (l : literal V)
+variables (τ : assignment V) (g : nxor V) (l : literal V)
 
 /- Evaluate the variables under the assignment according to typical XOR -/
 protected def eval : bool :=
-  g.foldr (λ l b, b ⊕ l.eval α) ff
+  g.foldr (λ l b, b ⊕ l.eval τ) ff
 
-@[simp] theorem eval_nil : nxor.eval α [] = ff := rfl
+@[simp] theorem eval_nil : nxor.eval τ [] = ff := rfl
 
-@[simp] theorem eval_singleton : nxor.eval α [l] = l.eval α :=
+@[simp] theorem eval_singleton : nxor.eval τ [l] = l.eval τ :=
 by simp only [nxor.eval, bool.bxor_ff_left, foldr]
 
-theorem eval_cons : nxor.eval α (l :: g) = bxor (l.eval α) (g.eval α) :=
+theorem eval_cons : nxor.eval τ (l :: g) = bxor (l.eval τ) (g.eval τ) :=
 by simp only [nxor.eval, foldr, bool.bxor_comm]
 
 theorem eval_append (g₁ g₂ : nxor V) : 
-  nxor.eval α (g₁ ++ g₂) = bxor (g₁.eval α) (g₂.eval α) :=
+  nxor.eval τ (g₁ ++ g₂) = bxor (g₁.eval τ) (g₂.eval τ) :=
 begin
   induction g₁ with l ls ih,
   { simp only [bool.bxor_ff_left, eval_nil, nil_append] },
@@ -66,11 +66,11 @@ begin
 end
 
 /- Evaluates to true if an odd number of literals evaluates to true -/
-theorem eval_eq_bodd_count_tt : g.eval α = bodd (clause.count_tt α g) :=
+theorem eval_eq_bodd_count_tt : g.eval τ = bodd (clause.count_tt τ g) :=
 begin
   induction g with l ls ih,
   { simp only [bodd_zero, eval_nil, count_tt_nil] },
-  { cases h : (l.eval α);
+  { cases h : (l.eval τ);
     { simp [nxor.eval_cons, count_tt_cons, h, ih] } }
 end
 
@@ -115,8 +115,8 @@ namespace assignment
 open list
 open nxor
 
-theorem eval_eq_nxor_of_eqod {α₁ α₂ : assignment V} {g : nxor V} :
-  (α₁ ≡g.vars≡ α₂) → g.eval α₁ = g.eval α₂ :=
+theorem eval_eq_nxor_of_eqod {τ₁ τ₂ : assignment V} {g : nxor V} :
+  (τ₁ ≡g.vars≡ τ₂) → g.eval τ₁ = g.eval τ₂ :=
 begin
   induction g with l ls ih,
   { simp only [eqod_nil, eval_nil, vars_nil, forall_true_left] },

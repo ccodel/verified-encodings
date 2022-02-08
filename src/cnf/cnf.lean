@@ -20,10 +20,10 @@ import data.nat.basic
 universe u
 
 -- Represents the parametric type of the variable stored in the literal
-variables {V : Type u} [decidable_eq V] [inhabited V]
+variables {V : Type*} [decidable_eq V] [inhabited V]
 
 /- Conjunctive normal form is a list of clauses joined by logical ANDs -/
-def cnf (V : Type u) := list (clause V)
+def cnf (V : Type*) := list (clause V)
 
 -- Note that the above definition allows for duplication of clauses (and
 -- permutations of clauses), whereas a set definition would not (assuming a
@@ -37,6 +37,7 @@ open literal
 open clause
 open list
 open function 
+open finset
 
 /-! # Instance properties -/
 
@@ -66,35 +67,35 @@ end
 -- Note: The below implementation works as well as a countp/filter, too
 /- The clauses of the CNF are joined by conjunctions, so for the evaluation
    of a formula to be true, all clauses within must evaluate to true -/
-protected def eval (α : assignment V) (f : cnf V) : bool :=
-  f.foldr (λ c b, b && (clause.eval α c)) tt
+protected def eval (τ : assignment V) (f : cnf V) : bool :=
+  f.foldr (λ c b, b && (clause.eval τ c)) tt
 
-@[simp] theorem eval_nil {α : assignment V} : cnf.eval α [] = tt := rfl
+@[simp] theorem eval_nil {τ : assignment V} : cnf.eval τ [] = tt := rfl
 
-@[simp] theorem eval_singleton {α : assignment V} {c : clause V} : 
-  cnf.eval α [c] = clause.eval α c :=
+@[simp] theorem eval_singleton {τ : assignment V} {c : clause V} : 
+  cnf.eval τ [c] = clause.eval τ c :=
 by simp only [cnf.eval, foldr, tt_band]
 
-theorem eval_cons {α : assignment V} {c : clause V} {f : cnf V} : 
-  cnf.eval α (c :: f) = (clause.eval α c && cnf.eval α f) :=
+theorem eval_cons {τ : assignment V} {c : clause V} {f : cnf V} : 
+  cnf.eval τ (c :: f) = (clause.eval τ c && cnf.eval τ f) :=
 by simp only [cnf.eval, foldr, bool.band_comm]
 
-theorem eval_ff_cons_of_eval_ff {α : assignment V} {f : cnf V} (c : clause V) :
-  cnf.eval α f = ff → cnf.eval α (c :: f) = ff :=
+theorem eval_ff_cons_of_eval_ff {τ : assignment V} {f : cnf V} (c : clause V) :
+  cnf.eval τ f = ff → cnf.eval τ (c :: f) = ff :=
 assume h, by rw [eval_cons, h, band_ff]
 
-theorem eval_append (α : assignment V) (f₁ f₂ : cnf V) : 
-  cnf.eval α (f₁ ++ f₂) = cnf.eval α f₁ && cnf.eval α f₂ :=
+theorem eval_append (τ : assignment V) (f₁ f₂ : cnf V) : 
+  cnf.eval τ (f₁ ++ f₂) = cnf.eval τ f₁ && cnf.eval τ f₂ :=
 begin
   unfold cnf.eval,
   rw foldr_append,
-  cases foldr (λ c b, b && clause.eval α c) tt f₂,
+  cases foldr (λ c b, b && clause.eval τ c) tt f₂,
   { rw [band_ff, foldr_band_ff] },
   { rw band_tt }
 end
 
-theorem eval_tt_iff_forall_clause_eval_tt {α : assignment V} {f : cnf V} :
-  cnf.eval α f = tt ↔ ∀ c ∈ f, clause.eval α c = tt :=
+theorem eval_tt_iff_forall_clause_eval_tt {τ : assignment V} {f : cnf V} :
+  cnf.eval τ f = tt ↔ ∀ c ∈ f, clause.eval τ c = tt :=
 begin
   split,
   { induction f with c cs ih,
@@ -109,8 +110,8 @@ begin
       exact and.intro hc (ih hcs) } }
 end
 
-theorem eval_ff_iff_exists_clause_eval_ff {α : assignment V} {f : cnf V} :
-  cnf.eval α f = ff ↔ ∃ c ∈ f, clause.eval α c = ff :=
+theorem eval_ff_iff_exists_clause_eval_ff {τ : assignment V} {f : cnf V} :
+  cnf.eval τ f = ff ↔ ∃ c ∈ f, clause.eval τ c = ff :=
 begin
   split,
   { induction f with c cs ih,
@@ -128,26 +129,32 @@ begin
       { exact eval_ff_cons_of_eval_ff c (ih ⟨cl, h, heval⟩) } } }
 end
 
-theorem ne_nil_of_eval_ff {α : assignment V} {f : cnf V} :
-  f.eval α = ff → f ≠ [] :=
+theorem ne_nil_of_eval_ff {τ : assignment V} {f : cnf V} :
+  f.eval τ = ff → f ≠ [] :=
 begin
   intro h,
   rcases eval_ff_iff_exists_clause_eval_ff.mp h with ⟨cl, hcl, _⟩,
   exact ne_nil_of_mem hcl
 end
 
+def satisfiable (f : cnf V) := ∃ τ, f.eval τ = tt
+
+theorem satisfiable_of_eval_tt (f : cnf V) (τ : assignment V) :
+  f.eval τ = tt → satisfiable f :=
+assume h, exists.intro τ h
+
 /-! ### Counting -/
 
 /- Counts the number of clauses which evaluate to true under some assignment -/
-protected def count_tt (α : assignment V) (f : cnf V) : nat :=
-  f.countp (λ c, clause.eval α c = tt)
+protected def count_tt (τ : assignment V) (f : cnf V) : nat :=
+  f.countp (λ c, clause.eval τ c = tt)
 
 /- Counts the number of clauses which evaluate to false under some assignment -/
-protected def count_ff (α : assignment V) (f : cnf V) : nat :=
-  f.countp (λ c, clause.eval α c = ff)
+protected def count_ff (τ : assignment V) (f : cnf V) : nat :=
+  f.countp (λ c, clause.eval τ c = ff)
 
-@[simp] theorem count_tt_nil (α : assignment V) : cnf.count_tt α [] = 0 := rfl
-@[simp] theorem count_ff_nil (α : assignment V) : cnf.count_ff α [] = 0 := rfl
+@[simp] theorem count_tt_nil (τ : assignment V) : cnf.count_tt τ [] = 0 := rfl
+@[simp] theorem count_ff_nil (τ : assignment V) : cnf.count_ff τ [] = 0 := rfl
 
 /-! # vars -/
 
@@ -160,6 +167,13 @@ protected def vars : cnf V → finset V
 
 @[simp] theorem vars_singleton (c : clause V) : cnf.vars [c] = clause.vars c :=
 by { unfold cnf.vars, rw finset.union_empty }
+
+theorem vars_append (f₁ f₂ : cnf V) : cnf.vars (f₁ ++ f₂) = f₁.vars ∪ f₂.vars :=
+begin
+  induction f₁ with c cs ih,
+  { simp only [empty_union, vars_nil, nil_append] },
+  { simp only [cnf.vars, cons_append c cs f₂, ih, finset.union_assoc] }
+end
 
 theorem mem_vars_cons_of_mem_vars {f : cnf V} {v : V} (c : clause V) :
   v ∈ f.vars → v ∈ cnf.vars (c :: f) :=
@@ -178,62 +192,38 @@ begin
     { exact mem_vars_cons_of_mem_vars cl (ih hc hv) } }
 end
 
-theorem exists_mem_clause_and_mem_of_mem_vars {f : cnf V} {v : V} :
-  v ∈ f.vars → ∃ (c : clause V), c ∈ f ∧ v ∈ c.vars :=
+theorem mem_vars_iff_exists_mem_clause_and_mem {f : cnf V} {v : V} :
+  v ∈ f.vars ↔ ∃ (c : clause V), c ∈ f ∧ v ∈ c.vars :=
 begin
   induction f with cl cls ih,
-  { rw vars_nil, intro h, exact absurd h (finset.not_mem_empty _) },
-  { intro hm,
-    by_cases h : (v ∈ cl.vars),
-    { use [cl, and.intro (mem_cons_self _ _) h] },
-    { unfold cnf.vars at hm,
-      rcases ih (or.resolve_left (finset.mem_union.mp hm) h) with ⟨c, hc, hcv⟩,
-      use [c, and.intro (mem_cons_of_mem cl hc) hcv] } }
+  { simp only [not_mem_empty, not_mem_nil, exists_false, vars_nil, false_and] },
+  { split,
+    { intro hv,
+      by_cases h : (v ∈ cl.vars),
+      { use [cl, and.intro (mem_cons_self _ _) h] },
+      { rcases ih.mp (or.resolve_left (finset.mem_union.mp hv) h) with ⟨c, hc, hv⟩,
+        use [c, and.intro (mem_cons_of_mem cl hc) hv] } },
+    { rintros ⟨c, hc, hv⟩,
+      rw cnf.vars,
+      rcases eq_or_mem_of_mem_cons hc with (rfl | hc),
+      { exact finset.mem_union_left _ hv },
+      { apply finset.mem_union_right,
+        exact ih.mpr ⟨c, hc, hv⟩ } } }
 end
 
 theorem vars_subset_of_subset {f₁ f₂ : cnf V} :
   f₁ ⊆ f₂ → (cnf.vars f₁) ⊆ (cnf.vars f₂) :=
 begin
   intros h v hv,
-  rcases cnf.exists_mem_clause_and_mem_of_mem_vars hv with ⟨c, hf, hvc⟩,
+  rcases cnf.mem_vars_iff_exists_mem_clause_and_mem.mp hv with ⟨c, hf, hvc⟩,
   exact clause_vars_subset_of_vars_of_mem (h hf) hvc
-end
-
--- It is important to produce a variable not in the vars of a formula
--- We produce the variable as the successor of the largest variable,
--- if given a bijection between the variable type and the natural numbers
-
--- TODO: Maybe refine this theorem/definition with something else in lib.
-theorem exists_not_mem_vars_of_bijection {g : V → nat} (f : cnf V) : 
-  bijective g → ∃ (v : V), v ∉ cnf.vars f :=
-begin
-  intro hg,
-  cases f,
-  { use [(arbitrary V), finset.not_mem_empty _] },
-  { have : (max_nat (map g (cnf.vars (f_hd :: f_tl)).to_list)) + 1 > 
-      (max_nat (map g (cnf.vars (f_hd :: f_tl)).to_list)),
-      from lt_add_one _,
-    rcases exists_not_mem_of_bijective_of_gt_max_nat hg this with ⟨v, heq, hv⟩,
-    rw finset.mem_to_list at hv,
-    use [v, hv] }
-end
-
--- Corollary of the above
-theorem exists_not_mem_forall_clause_of_bijection 
-  {g : V → nat} (hg : bijective g) (f : cnf V) :
-  ∃ (v : V), ∀ (c : clause V), c ∈ f → v ∉ clause.vars c :=
-begin
-  rcases exists_not_mem_vars_of_bijection f hg with ⟨v, hv⟩,
-  use v,
-  intros c hc hvnot,
-  exact hv ((clause_vars_subset_of_vars_of_mem hc) hvnot)
 end
 
 /-! # Equisatisfiability -/
 
 def equisatisfiable (f₁ f₂ : cnf V) :=
-  (∃ (α₁ : assignment V), cnf.eval α₁ f₁ = tt) ↔ 
-   ∃ (α₂ : assignment V), cnf.eval α₂ f₂ = tt
+  (∃ (τ₁ : assignment V), cnf.eval τ₁ f₁ = tt) ↔ 
+   ∃ (τ₂ : assignment V), cnf.eval τ₂ f₂ = tt
 
 notation f₁ ` ≈ ` f₂ := equisatisfiable f₁ f₂
 
@@ -267,11 +257,11 @@ open clause
 open cnf
 open list
 
-theorem eval_eq_cnf_of_eqod {α₁ α₂ : assignment V} {f : cnf V} :
-  (α₁ ≡f.vars≡ α₂) → f.eval α₁ = f.eval α₂ :=
+theorem eval_eq_cnf_of_eqod {τ₁ τ₂ : assignment V} {f : cnf V} :
+  (τ₁ ≡f.vars≡ τ₂) → f.eval τ₁ = f.eval τ₂ :=
 begin
   intro h,
-  cases hev : (cnf.eval α₂ f),
+  cases hev : (cnf.eval τ₂ f),
   { apply eval_ff_iff_exists_clause_eval_ff.mpr,
     rcases eval_ff_iff_exists_clause_eval_ff.mp hev with ⟨c, hc, hff⟩,
     use [c, hc],

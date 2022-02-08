@@ -41,7 +41,7 @@ variables {g : nxor V} {c : clause V}
 def direct_xor : nxor V → cnf V
 | []        := [[]]
 | (l :: ls) := (explode (map var ls)).map 
-      (λ c, cond (bodd (c.count_flips (ls)) = ff) (l :: c) (l.flip :: c))
+      (λ c, ite (!bodd (c.count_flips ls)) (l :: c) (l.flip :: c))
 
 @[simp] theorem direct_xor_nil : direct_xor ([] : nxor V) = [[]] := rfl
 
@@ -116,13 +116,13 @@ begin
       { exact map_var_eq_iff_mem_explode.mp hxs },
       { cases h : (bodd (clause.count_flips xs ls)),
         { rcases var_eq_iff_eq_or_flip_eq.mp hx with rfl | hx,
-          { simp only [if_true, eq_self_iff_true] },
+          { simp only [if_true, coe_sort_tt, bool.bnot_false] },
           { simp [clause.count_flips, hx] at hf,
             rw h at hf, contradiction } },
         { rcases var_eq_iff_eq_or_flip_eq.mp hx with hx | rfl,
           { simp [clause.count_flips, hx] at hf,
             rw h at hf, contradiction },
-          { simp only [flip_flip, if_false] } } } } },
+          { simp only [flip_flip, if_false, bool.bnot_true, coe_sort_ff]} } } } },
   { cases g with l ls,
     { simp },
     { simp only [direct_xor, bool.cond_to_bool, mem_map],
@@ -145,24 +145,32 @@ begin
     exact (even_flips_iff_mem_direct_xor_of_map_var_eq hc).mp }
 end
 
+theorem mem_direct_xor_self (g : nxor V) : g ∈ (direct_xor g) :=
+begin
+  have hcount := clause.count_flips_self g,
+  have := nat.bodd_zero,
+  rw ← hcount at this,
+  exact (even_flips_iff_mem_direct_xor_of_map_var_eq (refl _)).mp this
+end
+
 -- Some proofs require the stronger statement that direct is exactly xor
-theorem eval_direct_xor_eq_eval_nxor (g : nxor V) (α : assignment V) :
-  cnf.eval α (direct_xor g) = g.eval α :=
+theorem eval_direct_xor_eq_eval_nxor (g : nxor V) (τ : assignment V) :
+  (direct_xor g).eval τ = g.eval τ :=
 begin
   cases g with l ls,
   { simp only [cnf.eval_singleton, eval_nil, direct_xor_nil, clause.eval_nil] },
-  { have he := eval_eq_bodd_count_tt α (l :: ls),
-    cases h : (nxor.eval α (l :: ls)),
+  { have he := eval_eq_bodd_count_tt τ (l :: ls),
+    cases h : (nxor.eval τ (l :: ls)),
     { apply eval_ff_iff_exists_clause_eval_ff.mpr,
-      use (clause.falsify α (map var (l :: ls))),
+      use (clause.falsify τ (map var (l :: ls))),
       split,
-      { rw [← clause.count_flips_falsify_eq_count_tt α (l :: ls),
+      { rw [← clause.count_flips_falsify_eq_count_tt τ (l :: ls),
             clause.count_flips_comm] at he,
         apply (even_flips_iff_mem_direct_xor_of_map_var_eq 
-          (clause.falsify_map_var_eq α (map var (l :: ls)))).mp,
+          (clause.falsify_map_var_eq τ (map var (l :: ls)))).mp,
         rw ← h,
         exact he.symm },
-      { exact clause.falsify_eval_ff α (map var (l :: ls)) } },
+      { exact clause.falsify_eval_ff τ (map var (l :: ls)) } },
     { rw h at he,
       apply eval_tt_iff_forall_clause_eval_tt.mpr,
       intros c hc,
@@ -174,27 +182,23 @@ begin
       exact clause.eval_tt_of_ne_flips mve.symm (ne.symm neq) } }
 end
 
--- The stronger statement of eval_direct_xor_eq_eval_nxor is sufficient
-theorem direct_xor_equisatisfiable (g : nxor V) :
-  assignment.eqsat (λ α, cnf.eval α (direct_xor g)) (λ α, g.eval α) :=
+theorem vars_direct_xor (g : nxor V) : (direct_xor g).vars = g.vars :=
 begin
-  split,
-  { rintros ⟨α, ha⟩,
-    use α, simp at ha,
-    simp only [← eval_direct_xor_eq_eval_nxor, ha] },
-  { rintros ⟨α, ha⟩,
-    use α, simp at ha,
-    simp only [eval_direct_xor_eq_eval_nxor, ha] }
-end
-
-/-
-theorem vars_direct_xor (g : nxor V) : cnf.vars (direct_xor g) = vars g :=
-begin
-  induction g with v vs ih,
+  cases g with l ls,
   { simp only [cnf.vars_singleton, direct_xor_nil, vars_nil, clause.vars_nil] },
-  { }
+  { rw finset.ext_iff,
+    intro v,
+    split,
+    { intro hv,
+      rcases mem_vars_iff_exists_mem_clause_and_mem.mp hv with ⟨c, hc⟩,
+      rw [vars, clause.mem_vars_iff_mem_map_vars],
+      rw ← (map_var_eq_of_mem_direct_xor hc.1),
+      exact clause.mem_vars_iff_mem_map_vars.mp hc.2 },
+    { intro hv,
+      apply mem_vars_iff_exists_mem_clause_and_mem.mpr,
+      use (l :: ls),
+      exact ⟨mem_direct_xor_self _, hv⟩ } }
 end
--/
 
 end direct_encoding
 

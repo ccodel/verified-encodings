@@ -1,6 +1,6 @@
 # Verified encodings in Lean
 
-This is a project by [Cayden Codel](http://www.crcodel.com), advised by [Jeremy Avigad](https://www.andrew.cmu.edu/user/avigad/) and [Marijn Heule](https://www.cs.cmu.edu/~mheule/). It intends to formally verify encodings of logic gates, cardinality constraints, and other methods of specifying mathematical problems in propositional logic.
+This is a project by [Cayden Codel](http://www.crcodel.com), advised by [Jeremy Avigad](https://www.andrew.cmu.edu/user/avigad/) and [Marijn Heule](https://www.cs.cmu.edu/~mheule/). It intends to formally verify encodings of Boolean functions, cardinality constraints, and other methods of specifying mathematical problems in propositional logic.
 
 ## Building locally
 

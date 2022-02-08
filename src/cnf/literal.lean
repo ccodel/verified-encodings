@@ -11,8 +11,8 @@ import tactic
 
 universe u
 
--- Represents the parametric type of the variable stored in the literal
-variables {V : Type u} [decidable_eq V] [inhabited V]
+-- Represents the type of the variable stored in the literal
+variable {V : Type*}
 
 /-
 All propositional formulas are comprised of Boolean literals.
@@ -27,7 +27,7 @@ inductive literal (V)
 Propositional formulas may be evaluated under truth assignments.
 Assignments give boolean values to the variables in the formula.
 -/
-def assignment (V : Type u) := V → bool
+def assignment (V : Type*) := V → bool
 
 namespace literal
 
@@ -35,7 +35,7 @@ open function
 
 /-! # Properties -/
 
-instance : inhabited (literal V) := ⟨Pos (arbitrary V)⟩
+instance [inhabited V] : inhabited (literal V) := ⟨Pos (arbitrary V)⟩
 
 /-! # Var -/
 
@@ -67,9 +67,9 @@ When provided an assignment, literals may be evaluated against
 that assignment. Negated literals flip the truth value of the
 underlying variable when evaluated on the assignment.
 -/
-protected def eval (α : assignment V) : literal V → bool
-| (Pos v) := α v
-| (Neg v) := bnot (α v)
+protected def eval (τ : assignment V) : literal V → bool
+| (Pos v) := τ v
+| (Neg v) := bnot (τ v)
 
 /-! # Flip -/
 
@@ -80,7 +80,7 @@ protected def flip : literal V → literal V
 | (Pos v) := Neg v
 | (Neg v) := Pos v
 
-@[simp] theorem flip_ne (l : literal V) : l.flip ≠ l :=
+@[simp] theorem flip_ne [decidable_eq V] (l : literal V) : l.flip ≠ l :=
 by cases l; unfold literal.flip; exact dec_trivial
 
 theorem flip_flip (l : literal V) : l.flip.flip = l :=
@@ -150,22 +150,22 @@ end
 /-! # Flip evaluation -/
 
 -- When a literal is flipped, its truth assignment is negated
-theorem eval_flip (α : assignment V) (l : literal V) : 
-  l.flip.eval α = bnot (l.eval α) :=
+theorem eval_flip (τ : assignment V) (l : literal V) : 
+  l.flip.eval τ = bnot (l.eval τ) :=
 by cases l; simp only [literal.flip, literal.eval, bnot_bnot]
 
 -- A slight modification where the negation is the flipped literal
-theorem eval_flip2 (α : assignment V) (l : literal V) :
-  l.eval α = bnot (l.flip.eval α) :=
+theorem eval_flip2 (τ : assignment V) (l : literal V) :
+  l.eval τ = bnot (l.flip.eval τ) :=
 by cases l; simp only [literal.flip, literal.eval, bnot_bnot]
 
-theorem eval_flip_of_eval {α : assignment V} {l : literal V} {b : bool} :
-  l.eval α = b → l.flip.eval α = bnot b :=
-assume h, congr_arg bnot h ▸ eval_flip α l
+theorem eval_flip_of_eval {τ : assignment V} {l : literal V} {b : bool} :
+  l.eval τ = b → l.flip.eval τ = bnot b :=
+assume h, congr_arg bnot h ▸ eval_flip τ l
 
-theorem eval_of_eval_flip {α : assignment V} {l : literal V} {b : bool} :
-  literal.eval α l.flip = b → literal.eval α l = bnot b :=
-assume h, congr_arg bnot h ▸ eval_flip2 α l
+theorem eval_of_eval_flip {τ : assignment V} {l : literal V} {b : bool} :
+  literal.eval τ l.flip = b → literal.eval τ l = bnot b :=
+assume h, congr_arg bnot h ▸ eval_flip2 τ l
 
 /-! # Positives and negatives -/
 
@@ -178,11 +178,11 @@ protected def is_neg : literal V → Prop
 | (Neg _) := true
 
 -- Must be protected because of decidable.is_true
-protected def is_true (α : assignment V) (l : literal V) : Prop := 
-literal.eval α l = tt
+protected def is_true (τ : assignment V) (l : literal V) : Prop := 
+literal.eval τ l = tt
 
-protected def is_false (α : assignment V) (l : literal V) : Prop :=
-literal.eval α l = ff
+protected def is_false (τ : assignment V) (l : literal V) : Prop :=
+literal.eval τ l = ff
 
 -- is_pos, etc. are decidable
 instance : decidable_pred (literal.is_pos : literal V → Prop) :=
@@ -199,17 +199,17 @@ begin
   { unfold literal.is_neg, exact decidable.true }
 end
 
-instance (α : assignment V) : decidable_pred (literal.is_true α) :=
+instance (τ : assignment V) : decidable_pred (literal.is_true τ) :=
 begin
   intro l,
-  cases h : literal.eval α l;
+  cases h : literal.eval τ l;
   { unfold literal.is_true, rw h, exact eq.decidable _ _ }
 end
 
-instance (α : assignment V) : decidable_pred (literal.is_false α) :=
+instance (τ : assignment V) : decidable_pred (literal.is_false τ) :=
 begin
   intro l,
-  cases h : literal.eval α l;
+  cases h : literal.eval τ l;
   { unfold literal.is_false, rw h, exact eq.decidable _ _ }
 end
 
@@ -220,13 +220,13 @@ by cases l; simp [literal.is_pos, literal.is_neg]
 
 -- A literal can never be both true and false under the same assignment
 -- NOTE: A strange proof, can probably be simplified
-theorem is_true_ne_is_false (α : assignment V) :
-  (literal.is_true α) ≠ (literal.is_false α) :=
+theorem is_true_ne_is_false [inhabited V] (τ : assignment V) :
+  (literal.is_true τ) ≠ (literal.is_false τ) :=
 begin
   intro h,
   have v := arbitrary (literal V),
   have := congr_arg (λ (f : literal V → Prop), f v) h,
-  cases he : literal.eval α v;
+  cases he : literal.eval τ v;
   { simp [literal.is_true, literal.is_false, he] at this, assumption }
 end
 
