@@ -634,7 +634,7 @@ assume hc hcount,
 -- variable in that clause will evaluate to true
 theorem eval_tt_of_ne_flips {τ : assignment V} {c₁ c₂ : clause V} :
   map var c₁ = map var c₂ → 
-    clause.count_tt τ c₁ ≠ count_flips c₁ c₂ → c₂.eval τ = tt :=
+    c₁.count_tt τ ≠ count_flips c₁ c₂ → c₂.eval τ = tt :=
 begin
   induction c₁ with l ls ih generalizing c₂,
   { simp },
