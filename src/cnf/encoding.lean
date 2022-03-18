@@ -22,8 +22,8 @@ namespace encoding
 open assignment
 
 /- A CNF formula encodes a Boolean function -/
-def encodes (f : list bool → bool) (F : cnf V) (s : list V) :=
-  ∀ τ, (f (s.map τ) = tt ↔ ∃ σ, F.eval σ = tt ∧ (τ ≡s.to_finset≡ σ))
+def encodes (f : list bool → bool) (F : cnf V) (l : list (literal V)) :=
+  ∀ τ, (f (l.map (literal.eval τ)) = tt ↔ ∃ σ, F.eval σ = tt ∧ (τ ≡(clause.vars l)≡ σ))
 
 /- Definition of S-equivalence -/
 def sequiv (F₁ F₂ : cnf V) (s : finset V) := ∀ τ, 
@@ -38,24 +38,10 @@ assume h τ, (h τ).symm
 
 @[trans] theorem sequiv.trans {F₁ F₂ F₃ : cnf V} {s : finset V} :
   sequiv F₁ F₂ s → sequiv F₂ F₃ s → sequiv F₁ F₃ s :=
-begin
-  intros h₁ h₂ τ,
-  split,
-  { intro h,
-    exact (h₂ τ).mp ((h₁ τ).mp h) },
-  { intro h,
-    exact (h₁ τ).mpr ((h₂ τ).mpr h) }
-end
+assume h₁ h₂ τ, ⟨λ h, (h₂ τ).mp ((h₁ τ).mp h), λ h, (h₁ τ).mpr ((h₂ τ).mpr h)⟩
 
-theorem encodes_of_encodes_of_sequiv {f : list bool → bool} {F₁ F₂ : cnf V} (s : list V) :
-  encodes f F₁ s → sequiv F₁ F₂ s.to_finset → encodes f F₂ s :=
-begin
-  intros h₁ h₂ τ,
-  split,
-  { intro hf,
-    exact (h₂ τ).mp ((h₁ τ).mp hf) },
-  { intro h,
-    exact (h₁ τ).mpr ((h₂ τ).mpr h) }
-end
+theorem encodes_of_encodes_of_sequiv {f : list bool → bool} {F₁ F₂ : cnf V} {l : list (literal V)} :
+  encodes f F₁ l → sequiv F₁ F₂ (clause.vars l) → encodes f F₂ l :=
+assume h₁ h₂ τ, ⟨λ h, (h₂ τ).mp ((h₁ τ).mp h), λ h, (h₁ τ).mpr ((h₂ τ).mpr h)⟩
 
 end encoding

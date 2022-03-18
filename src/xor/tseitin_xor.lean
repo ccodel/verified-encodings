@@ -285,6 +285,10 @@ begin
         { exact eqod.trans (eqod.trans hs heqod) heqod₂.symm } } } }
 end
 
+theorem linear_xor_encodes_Xor (hk : k ≥ 3) (hdis : disjoint g.stock (clause.vars l)) :
+  encodes Xor (linear_xor hk l g hdis) l :=
+encodes_of_encodes_of_sequiv (direct_xor_encodes_Xor l) (linear_sequiv hk hdis).symm
+
 -- Note: The proofs here are symmetric with the linear encoding ones
 -- If an improvement is made to the above proofs, simplify here
 
@@ -538,5 +542,9 @@ begin
           { exact he₂ ▸ eval_eq_cnf_of_eqod (ite_eqod _ _ _) } },
         { exact eqod.trans (eqod.trans hs heqod) heqod₂.symm } } } }
 end
+
+theorem pooled_xor_encodes_Xor (hk : k ≥ 3) (hdis : disjoint g.stock (clause.vars l)) :
+  encodes Xor (pooled_xor hk l g hdis) l :=
+encodes_of_encodes_of_sequiv (direct_xor_encodes_Xor l) (pooled_sequiv hk hdis).symm
 
 end tseitin_xor

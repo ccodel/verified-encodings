@@ -50,6 +50,7 @@ instance : has_singleton (clause V) (cnf V) := ⟨λ c, [c]⟩
 instance : has_insert (clause V) (cnf V) := ⟨list.insert⟩
 instance : has_append (cnf V) := ⟨list.append⟩
 instance : has_subset (cnf V) := ⟨list.subset⟩
+instance [has_repr V] : has_repr (cnf V) := ⟨list.repr⟩
 
 instance (c : clause V) (f : cnf V) : decidable (c ∈ f) :=
 begin

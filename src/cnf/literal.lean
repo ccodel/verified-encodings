@@ -37,6 +37,13 @@ open function
 
 instance [inhabited V] : inhabited (literal V) := ⟨Pos (arbitrary V)⟩
 
+protected def repr [has_repr V] : literal V → string
+| (Pos v) := "Pos " ++ (has_repr.repr v)
+| (Neg v) := "Neg " ++ (has_repr.repr v)
+
+instance [has_repr V] : has_repr (literal V) := ⟨literal.repr⟩
+instance [has_repr V] : has_to_string (literal V) := ⟨literal.repr⟩
+
 /-! # Var -/
 
 /- Extracts the underlying variable of the literal -/
@@ -103,6 +110,12 @@ assume l, exists.intro l.flip (flip_flip l)
 @[simp] theorem flip_bijective : 
   bijective (literal.flip : literal V → literal V) :=
 ⟨flip_injective, flip_surjective⟩
+
+theorem exists_flip_eq (l₁ : literal V) : ∃ (l₂ : literal V), l₂.flip = l₁ :=
+begin
+  use l₁.flip,
+  rw flip_flip
+end
 
 -- Various lemmas on how var and flip interact
 

@@ -196,6 +196,9 @@ end
 theorem fresh_mem_stock : g.fresh.1 ∈ g.stock :=
 mem_stock.mpr (or.inl (refl g.fresh.1))
 
+theorem fresh_fresh_mem_stock : g.fresh.2.fresh.1 ∈ g.stock :=
+mem_stock.mpr (or.inr (fresh_mem_stock g.fresh.2))
+
 theorem mem_stock_of_mem_fresh_stock {g : gensym α} : 
   a ∈ g.fresh.2.stock → a ∈ g.stock :=
 assume h, mem_stock.mpr (or.inr h)

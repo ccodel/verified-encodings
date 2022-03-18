@@ -59,6 +59,7 @@ instance : has_singleton (literal V) (clause V) := ⟨λ l, [l]⟩
 instance : has_insert (literal V) (clause V) := ⟨list.insert⟩
 instance : has_append (clause V) := ⟨list.append⟩
 instance : has_subset (clause V) := ⟨list.subset⟩
+instance [has_repr V] : has_repr (clause V) := ⟨list.repr⟩
 
 instance (l : literal V) (c : clause V) : decidable (l ∈ c) :=
 by apply_instance

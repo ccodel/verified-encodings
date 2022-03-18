@@ -10,6 +10,7 @@ import cnf.literal
 import cnf.assignment
 import cnf.clause
 import cnf.cnf
+import cnf.encoding
 import xor.xor
 import basic
 
@@ -26,6 +27,7 @@ namespace Xor
 open literal
 open clause -- TODO opening clause doesn't seem to open library...
 open cnf
+open encoding
 open list
 open Xor
 open explode
@@ -181,6 +183,22 @@ begin
       have neq := ne_of_apply_ne nat.bodd neqodd,
       rw clause.count_flips_comm at neq,
       exact clause.eval_tt_of_ne_flips mve.symm (ne.symm neq) } }
+end
+
+-- Formal proof of correctness, see encoding.lean
+theorem direct_xor_encodes_Xor (l : list (literal V)) :
+  encodes Xor (direct_xor l) l :=
+begin
+  intro τ,
+  split,
+  { intro h,
+    use τ,
+    rw eval_direct_xor_eq_eval_Xor l τ,
+    exact ⟨h, assignment.eqod.refl τ _⟩ },
+  { rintros ⟨σ, he, hs⟩,
+    rw [← Xor.eval, assignment.eval_eq_Xor_of_eqod hs, 
+      ← eval_direct_xor_eq_eval_Xor l σ],
+    exact he }
 end
 
 theorem vars_direct_xor (l : list (literal V)) : 

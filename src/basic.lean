@@ -11,6 +11,7 @@ import init.data.nat.lemmas
 import data.finset.basic
 import data.finset.fold
 import init.function
+import tactic
 
 open list
 open function
@@ -71,6 +72,40 @@ by { cases b, { tautology }, { intros, contradiction }}
 
 /- General results -/
 
+-- TODO: do casewise with |, not in tactic
+theorem exists_cons_cons_of_length_ge_two {l : list α} : 
+  length l ≥ 2 → ∃ (a b : α) (L : list α), (a :: b :: L) = l :=
+begin
+  cases l with a as,
+  { intro h, rw length at h, linarith },
+  { cases as with b bs, 
+    { intro h, rw [length, length] at h, linarith },
+    { intro _,
+      use [a, b, bs] } }
+end
+
+theorem exists_cons_cons_of_length_eq_two {l : list α} :
+  length l = 2 → ∃ (a b : α), [a, b] = l :=
+begin
+  cases l with a as,
+  { intro h, rw length at h, linarith },
+  { cases as with b bs,
+    { intro h, rw [length, length] at h, linarith },
+    { cases bs with c cs,
+      { simp },
+      { intro h, rw [length, length, length] at h, linarith } } }
+end
+
+theorem nth_le_of_ge {α : Type*} {l : list α} {n c : nat} (Hn : n < length l) :
+  n ≥ c → ∃ (Hn' : (n - c) + c < length l), 
+  nth_le l n Hn = nth_le l ((n - c) + c) Hn' :=
+begin
+  intro hc,
+  have := nat.sub_add_cancel hc,
+  use this.symm ▸ Hn,
+  simp [this]
+end
+
 theorem ne_tail_of_eq_head_of_ne [decidable_eq α] {a b : α} {l₁ l₂ : list α} :
   (a :: l₁) ≠ (b :: l₂) → a = b → l₁ ≠ l₂ :=
 assume hne hab hl, absurd (congr (congr_arg cons hab) hl) hne
@@ -105,6 +140,43 @@ begin
     { use [l₁ ++ [l₂h], hl₂t],
       simp only [hl₁, eq_self_iff_true, length, singleton_append, 
         append_assoc, and_self, length_append] } }
+end
+
+theorem exists_append_mem_of_mem_of_ne {l : list α} {a b : α} :
+  a ∈ l → b ∈ l → a ≠ b → ∃ (l₁ l₂), l₁ ++ l₂ = l ∧ 
+  ((a ∈ l₁ ∧ b ∈ l₂) ∨ (a ∈ l₂ ∧ b ∈ l₁)) :=
+begin
+  induction l with x xs ih,
+  { simp only [forall_false_left, not_mem_nil] },
+  { intros ha hb hne,
+    rcases eq_or_mem_of_mem_cons ha with (rfl | ha),
+    { have := mem_of_ne_of_mem hne.symm hb,
+      use [[a], xs],
+      simp only [this, true_or, eq_self_iff_true, singleton_append, 
+        and_self, mem_singleton] },
+    { rcases eq_or_mem_of_mem_cons hb with (rfl | hb),
+      { have := mem_of_ne_of_mem hne ha,
+        use [[b], xs],
+        simp only [this, hne, false_or, eq_self_iff_true, singleton_append, 
+          and_self, mem_singleton, false_and] },
+      { rcases ih ha hb hne with ⟨l₁, l₂, rfl, (⟨hl₁, hl₂⟩ | ⟨hl₁, hl₂⟩)⟩,
+        { use [(x :: l₁), l₂],
+          simp only [hl₁, hl₂, mem_cons_iff, cons_append, true_or, 
+            eq_self_iff_true, or_true, and_self] },
+        { use [(x :: l₁), l₂],
+          simp only [hl₁, hl₂, mem_cons_iff, cons_append, eq_self_iff_true, 
+            or_true, and_self] } } } }
+end
+
+theorem nth_le_sub_of_gt_zero {l : list α} {a : α} {n : nat} 
+  (hn : n < length (a :: l)) (hnsub : (n - 1) < length l) :
+  n > 0 → nth_le (a :: l) n hn = nth_le l (n - 1) hnsub :=
+begin
+  cases n,
+  { intro h, exact absurd (ge_of_eq (refl 0)) (not_le.mpr h) },
+  { intro _,
+    rw nth_le,
+    refl }
 end
 
 /- fold -/
@@ -195,6 +267,12 @@ begin
   rw [succ_eq_add_one, add_assoc, ← succ_eq_one_add],
   exact ne_of_gt (lt_add_of_pos_right n (succ_pos m))
 end
+
+theorem eq_succ_of_gt_of_le_succ {n m : nat} : m < n → n ≤ m + 1 → n = m + 1 :=
+assume h₁ h₂, ge_antisymm (succ_le_iff.mpr h₁) h₂
+
+theorem add_gt_one_of_gt_zero_of_gt_zero {n m : nat} : n > 0 → m > 0 → n + m > 1 :=
+assume h₁ h₂, succ_le_iff.mp (add_le_add (succ_le_iff.mpr h₁) (succ_le_iff.mpr h₂))
 
 section max_nat
 
