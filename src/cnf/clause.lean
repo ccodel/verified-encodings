@@ -854,6 +854,6 @@ end
 
 theorem count_tt_ite {τ₁ τ₂ : assignment V} (c : clause V) :
   clause.count_tt (assignment.ite c.vars τ₁ τ₂) c = clause.count_tt τ₁ c :=
-count_tt_eq_of_eqod (ite_eqod τ₁ τ₂ c.vars)
+count_tt_eq_of_eqod (ite_eqod c.vars τ₁ τ₂)
 
 end assignment

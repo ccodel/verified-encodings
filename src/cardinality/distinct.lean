@@ -35,7 +35,10 @@ begin
   linarith
 end
 
-theorem distinct_double {α : Type*} (a₁ a₂ b₁ b₂ : α) :
+theorem distinct_double {α : Type*} (a₁ a₂ : α) : distinct a₁ a₂ [a₁, a₂] :=
+by { use [0, 1], simp }
+
+theorem eq_of_distinct_double {α : Type*} {a₁ a₂ b₁ b₂ : α} :
   distinct a₁ a₂ [b₁, b₂] → a₁ = b₁ ∧ a₂ = b₂ :=
 begin
   rintros ⟨i, j, hi, hj, hij, hil, hjl⟩,

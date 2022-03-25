@@ -135,39 +135,41 @@ end eqod
 protected def ite (s : finset V) (τ₁ τ₂ : assignment V) : assignment V :=
   λ v, if v ∈ s then τ₁ v else τ₂ v
 
-@[simp] theorem ite_nil (τ₁ τ₂ : assignment V) (v : V) : 
-  (assignment.ite ∅ τ₁ τ₂) v = τ₂ v :=
+@[simp] theorem ite_nil : ∀ (τ₁ τ₂ : assignment V),
+  (assignment.ite ∅ τ₁ τ₂) = τ₂ :=
 by simp [assignment.ite]
 
-theorem ite_pos (τ₁ τ₂ : assignment V) {s : finset V} {v : V} :
-  v ∈ s → (assignment.ite s τ₁ τ₂) v = τ₁ v :=
+theorem ite_pos {s : finset V} {v : V} :
+  v ∈ s → ∀ (τ₁ τ₂ : assignment V), (assignment.ite s τ₁ τ₂) v = τ₁ v :=
 assume h, by simp [assignment.ite, h]
 
-theorem ite_neg (τ₁ τ₂ : assignment V) {s : finset V} {v : V} :
-  v ∉ s → (assignment.ite s τ₁ τ₂) v = τ₂ v :=
+theorem ite_neg {s : finset V} {v : V} :
+  v ∉ s → ∀ (τ₁ τ₂ : assignment V), (assignment.ite s τ₁ τ₂) v = τ₂ v :=
 assume h, by simp [assignment.ite, h]
 
-theorem ite_pos_lit (τ₁ τ₂ : assignment V) {s : finset V} {l : literal V} :
-  l.var ∈ s → literal.eval (assignment.ite s τ₁ τ₂) l = literal.eval τ₁ l :=
+theorem ite_pos_lit {s : finset V} {l : literal V} :
+  l.var ∈ s → ∀ (τ₁ τ₂ : assignment V), 
+  literal.eval (assignment.ite s τ₁ τ₂) l = literal.eval τ₁ l :=
 begin
   cases l,
-  { simp [literal.var, literal.eval], exact ite_pos τ₁ τ₂ },
+  { simp [literal.var, literal.eval], intro h, exact ite_pos h },
   { simp [literal.var, literal.eval],
-    intro h, rw ite_pos τ₁ τ₂ h }
+    intros h _ _, rw ite_pos h }
 end
 
-theorem ite_neg_lit (τ₁ τ₂ : assignment V) {s : finset V} {l : literal V} :
-  l.var ∉ s → literal.eval (assignment.ite s τ₁ τ₂) l = literal.eval τ₂ l :=
+theorem ite_neg_lit {s : finset V} {l : literal V} :
+  l.var ∉ s → ∀ (τ₁ τ₂ : assignment V), 
+  literal.eval (assignment.ite s τ₁ τ₂) l = literal.eval τ₂ l :=
 begin
   cases l,
-  { simp [literal.var, literal.eval], exact ite_neg τ₁ τ₂ },
+  { simp [literal.var, literal.eval], intro h, exact ite_neg h },
   { simp [literal.var, literal.eval],
-    intro h, rw ite_neg τ₁ τ₂ h }
+    intros h _ _, rw ite_neg h }
 end
 
-theorem ite_eqod (τ₁ τ₂ : assignment V) (s : finset V) :
+theorem ite_eqod (s : finset V) (τ₁ τ₂ : assignment V) :
   (assignment.ite s τ₁ τ₂) ≡s≡ τ₁ :=
-assume v hv, ite_pos _ _ hv
+assume v hv, ite_pos hv _ _
 
 theorem ite_eqod_of_disjoint (τ₁ τ₂ : assignment V) {s₁ s₂ : finset V} :
   disjoint s₁ s₂ → (τ₂ ≡s₂≡ (assignment.ite s₁ τ₁ τ₂)) :=
@@ -185,9 +187,9 @@ begin
   apply function.funext_iff.mpr,
   intro v,
   by_cases hv : v ∈ s,
-  { rw ite_pos _ _ hv,
+  { rw ite_pos hv _ _,
     exact h v hv },
-  { rw ite_neg _ _ hv }
+  { rw ite_neg hv _ _ }
 end
 
 /-! # Constant assignments -/

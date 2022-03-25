@@ -86,25 +86,11 @@ begin
   exact h lit (mem_cons_of_mem _ hl)
 end
 
--- Ultra specific case for amo proof
-theorem eval_cons_tt_of_eval_ff_of_erase_eval_tt {τ : assignment V} 
-  {l : list (literal V)} {lit₁ lit₂ : literal V} :
-  lit₁.eval τ = ff → amz.eval τ (l.erase lit₂) = tt → 
-  amz.eval τ ((lit₁ :: l).erase lit₂) = tt :=
+theorem eval_cons_eq_of_eval_ff {τ : assignment V} {l : list (literal V)}
+  {lit : literal V} : lit.eval τ = ff → amz.eval τ (lit :: l) = amz.eval τ l :=
 begin
-  intros hl₁ hl₂,
-  rw eval_tt_iff_forall_eval_ff at hl₂ |-,
-  intros lit hlit,
-  by_cases h₁₂ : lit₁ = lit₂,
-  { simp [h₁₂] at hlit,
-    by_cases h : lit = lit₂,
-    { rw [h, ← h₁₂],
-      exact hl₁ },
-    { exact hl₂ lit ((mem_erase_of_ne h).mpr hlit) } },
-  { by_cases h : lit = lit₁,
-    { rw h, exact hl₁ },
-    { simp [h, h₁₂] at hlit,
-      exact hl₂ lit hlit } }
+  intro h,
+  simp only [amz.eval, amz, h, map, count_cons_of_ne, ne.def, not_false_iff]
 end
 
 -- Encoding of at-most-zero is a clause for each literal, negated
@@ -141,6 +127,26 @@ begin
     rw eval_eq_of_eqod_of_var_mem heqod this,
     have := heval lit₂ hlit₂,
     simpa [eval_flip] using this }
+end
+
+-- TODO: There's a way to get a direct proof
+theorem eval_eq_amz_of_eqod {τ₁ τ₂ : assignment V} {l : list (literal V)} :
+  (τ₁ ≡clause.vars l≡ τ₂) → amz.eval τ₁ l = amz.eval τ₂ l :=
+begin
+  intro heqod,
+  induction l with l ls ih,
+  { simp only [amz.eval_nil] },
+  { have : literal.eval τ₁ l = literal.eval τ₂ l,
+    { have := mem_vars_of_mem (mem_cons_self l ls),
+      exact eval_eq_of_eqod_of_var_mem heqod this },
+    cases h : (literal.eval τ₁ l),
+    { rw eval_cons_eq_of_eval_ff h,
+      rw this at h,
+      rw eval_cons_eq_of_eval_ff h,
+      exact ih (eqod_subset (vars_subset_of_vars_cons l ls) heqod) },
+    { rw eval_ff_iff_exists_eval_tt.mpr ⟨l, mem_cons_self l ls, h⟩,
+      rw this at h,
+      rw eval_ff_iff_exists_eval_tt.mpr ⟨l, mem_cons_self l ls, h⟩ } }
 end
 
 end amz
@@ -276,6 +282,28 @@ begin
         { rw [eval_cons_pos h₁, eval_tt_iff_forall_eval_ff],
           intros x hx,
           exact h (distinct_cons_of_mem l₁ hx) h₁ } } } }
+end
+
+-- TODO: Direct proof?
+theorem eval_eq_amo_of_eqod {τ₁ τ₂ : assignment V} {l : list (literal V)} :
+  (τ₁ ≡clause.vars l≡ τ₂) → amo.eval τ₁ l = amo.eval τ₂ l :=
+begin
+  induction l with l ls ih,
+  { rw [eval_nil, eval_nil], tautology },
+  { intro heqod,
+    have heq : literal.eval τ₁ l = literal.eval τ₂ l,
+    { have := mem_vars_of_mem (mem_cons_self l ls),
+      exact eval_eq_of_eqod_of_var_mem heqod this },
+    have := eqod_subset (vars_subset_of_vars_cons l ls) heqod,
+    cases h : (literal.eval τ₁ l),
+    { rw eval_cons_neg h,
+      rw heq at h,
+      rw eval_cons_neg h,
+      exact ih this },
+    { rw eval_cons_pos h,
+      rw heq at h,
+      rw eval_cons_pos h,
+      exact eval_eq_amz_of_eqod this } }
 end
 
 -- Sinz encoding: art of computer programming
