@@ -113,6 +113,15 @@ begin
     exact ⟨rfl, rfl⟩ }
 end
 
+theorem eq_or_distinct_of_distinct_cons {α : Type*} {a₁ a₂ a : α} {l : list α} :
+  distinct a₁ a₂ (a :: l) → a₁ = a ∨ distinct a₁ a₂ l :=
+begin
+  intro hdis,
+  by_cases h : (a₁ = a),
+  { exact or.inl h },
+  { exact or.inr (distinct_of_distinct_cons_of_ne hdis h) }
+end
+
 theorem mem_tail_of_distinct_cons {α : Type*} {a₁ a₂ a : α} {as : list α} :
   distinct a₁ a₂ (a :: as) → a₂ ∈ as :=
 begin

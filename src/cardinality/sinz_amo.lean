@@ -13,6 +13,7 @@ import cnf.gensym
 
 import cardinality.distinct
 import cardinality.cardinality
+import cardinality.propagate
 
 import data.list.basic
 import data.nat.basic
@@ -30,6 +31,7 @@ open encoding
 open distinct
 open gensym
 open amo
+open propagate
 
 -- NOTES: Proofs need to be cleaned up
 --        Lemmas? The theorem length_lt_length_cons may be useful
@@ -70,6 +72,30 @@ def sinz : Π (l : list (literal V)), Π (g : gensym V),
     [Neg g.fresh.1, Pos g.fresh.2.fresh.1] ::
     [Neg g.fresh.1, l₂.flip] ::
     (sinz (l₂ :: ls) g.fresh.2 (disjoint_fresh_of_disjoint hdis))
+
+def sinz2 : Π (l : list (literal V)), Π (g : gensym V),
+  (disjoint g.stock (clause.vars l)) → cnf V
+| [] _ _   := []
+| l g hdis := propagate ((g.nfresh (length l)).1.map Pos) ++
+    (l.take (length l - 1)).map_with_index (λ i x, [x.flip, Pos (g.nfresh i).2.fresh.1]) ++
+    (l.drop 1).map_with_index (λ i x, [Neg (g.nfresh i).2.fresh.1, x.flip])
+
+theorem enc : encodes amo (sinz2 l g hdis) l :=
+begin
+  intro τ,
+  split,
+  {
+    intro hamo,
+    cases hamz : amz (map (literal.eval τ) l),
+    { rw ← amo.eval at hamo,
+      rw ← amz.eval at hamz,
+      rcases exists_eval_tt_of_eval_tt_of_amz_eval_ff hamo hamz with ⟨l₁, hmem, hl₁⟩,
+      
+    }
+  }
+end
+
+#exit
 
 theorem mem_sinz_vars_of_mem : length l ≥ 2 → clause.vars l ⊆ cnf.vars (sinz l g hdis) :=
 begin

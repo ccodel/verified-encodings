@@ -234,4 +234,25 @@ begin
   use [g.fresh.1, fresh_mem_stock g, fresh_not_mem_fresh_stock g]
 end
 
+-- # nth
+
+def nth (g : gensym α) (n : nat) : α := g.f (n + g.offset)
+
+theorem nth_ne_of_ne {i j : nat} : i ≠ j → ∀ (g : gensym α), nth g i ≠ nth g j :=
+assume hne g, g.f_inj.ne_iff.mpr ((add_ne_add_left g.offset).mpr hne)
+
+theorem eq_of_nth_eq {i j : nat} {g : gensym α} : nth g i = nth g j → i = j :=
+assume h, (add_left_inj g.offset).mp (g.f_inj.eq_iff.mp h)
+
+theorem nth_zero_eq_fresh : ∀ (g : gensym α), g.nth 0 = g.fresh.1 :=
+by { intro g, rw [nth, fresh, zero_add] }
+
+-- TODO figure out what mem stock really means
+theorem nth_mem_stock : ∀ (g : gensym α) (n : nat), g.nth n ∈ g.stock :=
+begin
+  intros g n,
+  rw [nth, stock],
+  simp, use n, rw add_comm,
+end
+
 end gensym

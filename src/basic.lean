@@ -106,6 +106,25 @@ begin
   simp [this]
 end
 
+-- TODO make non-inductive
+theorem mem_map_with_index {α β : Type*} {l : list α} {b : β} {f : nat → α → β} :
+  b ∈ l.map_with_index f → ∃ (a : α) (i : nat), a ∈ l ∧ f i a = b :=
+begin
+  induction l with l ls ih,
+  { rw [map_with_index, map_with_index_core],
+    intro h, exact absurd h (not_mem_nil _) },
+  {
+    intro h,
+    rw [map_with_index, map_with_index_core] at h,
+    rcases eq_or_mem_of_mem_cons h with (rfl | h),
+    { use [l, 0, mem_cons_self _ _] },
+    { 
+
+    }
+  }
+
+end
+
 theorem ne_tail_of_eq_head_of_ne [decidable_eq α] {a b : α} {l₁ l₂ : list α} :
   (a :: l₁) ≠ (b :: l₂) → a = b → l₁ ≠ l₂ :=
 assume hne hab hl, absurd (congr (congr_arg cons hab) hl) hne

@@ -239,6 +239,20 @@ begin
     exact h }
 end
 
+theorem exists_eval_tt_of_eval_tt_of_amz_eval_ff {τ : assignment V} {l : list (literal V)} :
+  amo.eval τ l = tt → amz.eval τ l = ff → ∃ lit ∈ l, literal.eval τ lit = tt :=
+begin
+  induction l with l₁ ls ih,
+  { intros h₁ h₂, simp [amz.eval] at h₂, contradiction },
+  { intros ho hz,
+    cases h: l₁.eval τ,
+    { rw eval_cons_neg h at ho,
+      rw eval_cons_eq_of_eval_ff h at hz,
+      rcases ih ho hz with ⟨w, hmem, hw⟩,
+      use ⟨w, (mem_cons_of_mem _ hmem), hw⟩ },
+    { use ⟨l₁, mem_cons_self _ _, h⟩ } }
+end
+
 theorem amo_eval_tt_iff_distinct_eval_ff_of_eval_tt {τ : assignment V} {l : list (literal V)} :
   amo.eval τ l = tt ↔ (∀ {lit₁ lit₂ : literal V}, 
   distinct lit₁ lit₂ l → lit₁.eval τ = tt → lit₂.eval τ = ff) :=
@@ -597,21 +611,35 @@ end
 
 end amo
 
-def amn {n : nat} (hn : n ≥ 1) (l : list bool) : bool := l.count tt ≤ n
+def amk (k : nat) (l : list bool) : bool := l.count tt ≤ k
 
-namespace amn
+namespace amk
 
 open list
 
-protected def eval {n : nat} (hn : n ≥ 1) (τ : assignment V) (l : list (literal V)) : bool :=
-  amn hn (l.map (literal.eval τ))
+protected def eval (k : nat) (τ : assignment V) (l : list (literal V)) : bool :=
+  amk k (l.map (literal.eval τ))
 
-variables {n : nat} (hn : n ≥ 1) (τ : assignment V) (l : list (literal V)) (lit : literal V)
+variables (k : nat) (τ : assignment V) (l : list (literal V)) (lit : literal V)
 
-@[simp] theorem eval_nil : amn.eval hn τ [] = tt :=
-by simp only [amn.eval, amn, count_nil, to_bool_true_eq_tt, zero_le, map_nil]
+@[simp] theorem eval_nil : amk.eval k τ [] = tt :=
+by simp only [amk.eval, amk, count_nil, to_bool_true_eq_tt, zero_le, map_nil]
 
-@[simp] theorem eval_singleton : amn.eval hn τ [lit] = tt :=
-by { simp only [amn.eval, amn, map, to_bool_iff], exact le_trans (count_le_length _ _) hn }
+theorem amk_zero_eq_amz : amk.eval 0 τ l = amz.eval τ l :=
+by simp only [amk.eval, amk, amz.eval, amz, nonpos_iff_eq_zero]
 
-end amn
+theorem amk_one_eq_amo : amk.eval 1 τ l = amo.eval τ l :=
+by simp only [amk.eval, amk, amo.eval, amo]
+
+theorem eval_cons_pos_of_gt_zero {k : nat} {τ : assignment V} 
+  {l : list (literal V)} {lit : literal V} : 
+  k > 0 → lit.eval τ = tt → amk.eval k τ (lit :: l) = amk.eval (k - 1) τ l :=
+begin
+  intro hk,
+  cases k,
+  { exact absurd hk (asymm hk) },
+  { intro ht,
+    simp [amk.eval, amk, ht, nat.succ_le_succ_iff] }
+end
+
+end amk
