@@ -72,6 +72,18 @@ by { cases b, { tautology }, { intros, contradiction }}
 
 /- General results -/
 
+theorem exists_append_singleton_of_ne_nil {l : list α} :
+  l ≠ [] → ∃ L a, l = L ++ [a] :=
+begin
+  induction l with l₁ l ih,
+  { contradiction },
+  { intro h,
+    cases l with l₂ l,
+    { use [[], l₁], simp only [nil_append, eq_self_iff_true, and_self] },
+    { rcases ih (cons_ne_nil l₂ l) with ⟨L, t, ht⟩,
+      use [l₁ :: L, t], simp only [ht, cons_append, eq_self_iff_true, and_self] } }
+end
+
 -- TODO: do casewise with |, not in tactic
 theorem exists_cons_cons_of_length_ge_two {l : list α} : 
   length l ≥ 2 → ∃ (a b : α) (L : list α), (a :: b :: L) = l :=
@@ -107,6 +119,7 @@ begin
 end
 
 -- TODO make non-inductive
+/-
 theorem mem_map_with_index {α β : Type*} {l : list α} {b : β} {f : nat → α → β} :
   b ∈ l.map_with_index f → ∃ (a : α) (i : nat), a ∈ l ∧ f i a = b :=
 begin
@@ -124,6 +137,7 @@ begin
   }
 
 end
+-/
 
 theorem ne_tail_of_eq_head_of_ne [decidable_eq α] {a b : α} {l₁ l₂ : list α} :
   (a :: l₁) ≠ (b :: l₂) → a = b → l₁ ≠ l₂ :=

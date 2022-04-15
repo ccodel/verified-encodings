@@ -625,10 +625,10 @@ variables (k : nat) (τ : assignment V) (l : list (literal V)) (lit : literal V)
 @[simp] theorem eval_nil : amk.eval k τ [] = tt :=
 by simp only [amk.eval, amk, count_nil, to_bool_true_eq_tt, zero_le, map_nil]
 
-theorem amk_zero_eq_amz : amk.eval 0 τ l = amz.eval τ l :=
+@[simp] theorem amk_zero_eq_amz : amk.eval 0 τ l = amz.eval τ l :=
 by simp only [amk.eval, amk, amz.eval, amz, nonpos_iff_eq_zero]
 
-theorem amk_one_eq_amo : amk.eval 1 τ l = amo.eval τ l :=
+@[simp] theorem amk_one_eq_amo : amk.eval 1 τ l = amo.eval τ l :=
 by simp only [amk.eval, amk, amo.eval, amo]
 
 theorem eval_cons_pos_of_gt_zero {k : nat} {τ : assignment V} 
