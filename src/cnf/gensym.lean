@@ -255,4 +255,14 @@ begin
   simp, use n, rw add_comm,
 end
 
+-- Disjointness
+theorem forall_nth_not_mem_of_disjoint {g : gensym α} {l : set α} :
+  disjoint g.stock l → ∀ (n : nat), g.nth n ∉ l :=
+λ h n, set.disjoint_left.mp h (nth_mem_stock g n)
+
+-- Coercion is silly
+theorem forall_nth_not_mem_of_disjoint' {g : gensym α} {l : finset α} :
+  disjoint g.stock l → ∀ (n : nat), g.nth n ∉ l :=
+forall_nth_not_mem_of_disjoint
+
 end gensym

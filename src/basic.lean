@@ -7,6 +7,7 @@ Carnegie Mellon University
 
 import data.bool.basic
 import data.list.basic
+import data.list.indexes
 import init.data.nat.lemmas
 import data.finset.basic
 import data.finset.fold
@@ -15,6 +16,7 @@ import tactic
 
 open list
 open function
+open nat
 
 universes u v
 variables {α : Type u} {β : Type v}
@@ -25,6 +27,9 @@ variables {α : Type u} {β : Type v}
 
 theorem ne_of_eq_ff_of_eq_tt {a b : bool} : a = ff → b = tt → a ≠ b :=
 assume h₁ h₂, by { rw [h₁, h₂], intro h, contradiction }
+
+theorem bool_symm : ∀ (a b : bool), a = b ↔ b = a :=
+by simp only [bool.forall_bool, iff_self, and_self]
 
 /- bxor -/
 
@@ -118,26 +123,62 @@ begin
   simp [this]
 end
 
--- TODO make non-inductive
-/-
-theorem mem_map_with_index {α β : Type*} {l : list α} {b : β} {f : nat → α → β} :
-  b ∈ l.map_with_index f → ∃ (a : α) (i : nat), a ∈ l ∧ f i a = b :=
+theorem take_one_of_ne_nil {α : Type*} [inhabited α] {l : list α} : 
+  l ≠ [] → l.take 1 = [l.head] :=
 begin
-  induction l with l ls ih,
-  { rw [map_with_index, map_with_index_core],
-    intro h, exact absurd h (not_mem_nil _) },
-  {
-    intro h,
-    rw [map_with_index, map_with_index_core] at h,
-    rcases eq_or_mem_of_mem_cons h with (rfl | h),
-    { use [l, 0, mem_cons_self _ _] },
-    { 
-
-    }
-  }
-
+  intro hl,
+  rcases exists_cons_of_ne_nil hl with ⟨a, as, rfl⟩,
+  simp [take, head]
 end
--/
+
+@[simp] theorem mem_map_with_index {α β : Type*} {l : list α} {b : β} {f : nat → α → β} :
+  b ∈ l.map_with_index f ↔ ∃ (a : α) (i : nat) (Hi : i < length l), a = l.nth_le i Hi ∧ f i a = b :=
+begin
+  induction l with a l ih generalizing f,
+  { split, { rintro ⟨_⟩ }, { rintro ⟨a, _, ⟨_⟩, _⟩ } },
+  { split,
+    { intro hb,
+      rcases eq_or_mem_of_mem_cons hb with (rfl | hw),
+      { use [a, 0, dec_trivial],
+        rw nth_le,
+        exact ⟨rfl, rfl⟩ },
+      { rw map_with_index_core_eq at hw,
+        rcases ih.mp hw with ⟨a, i, Hi, ha, hf⟩,
+        use [a, i + 1, succ_lt_succ_iff.mpr Hi],
+        rw nth_le,
+        subst ha,
+        simp [hf], -- Investigate below later
+        exact equiv.apply_swap_eq_self rfl Hi } },
+    { rintros ⟨a, i, Hi, ha, hf⟩,
+      cases i,
+      { rw nth_le at ha,
+        subst hf,
+        rw [map_with_index, map_with_index_core, ha],
+        exact mem_cons_self _ _ },
+      { rw nth_le at ha,
+        have := succ_lt_succ_iff.mp Hi,
+        rw [map_with_index, map_with_index_core],
+        apply (mem_cons_iff _ _ _).mpr,
+        right,
+        rw map_with_index_core_eq,
+        apply ih.mpr,
+        use [a, i, this, ha, hf] } } }
+end
+
+theorem take_sublist_of_le {α : Type*} {i j : nat} : i ≤ j → 
+  ∀ (l : list α), l.take i <+ l.take j :=
+begin
+  intros hij l,
+  induction l with a as ih generalizing i j,
+  { rw [take_nil, take_nil] },
+  { cases i,
+    { rw take_zero,
+      exact nil_sublist _ },
+    { cases j,
+      { exact absurd hij (not_le.mpr (succ_pos i)) },
+      { rw [take, take],
+        exact cons_sublist_cons_iff.mpr (ih (succ_le_succ_iff.mp hij)) } } }
+end
 
 theorem ne_tail_of_eq_head_of_ne [decidable_eq α] {a b : α} {l₁ l₂ : list α} :
   (a :: l₁) ≠ (b :: l₂) → a = b → l₁ ≠ l₂ :=

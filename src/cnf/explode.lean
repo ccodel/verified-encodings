@@ -168,7 +168,7 @@ begin
   induction l with v vs ih,
   { rw explode_nil, exact nodup_singleton nil },
   { simp only [explode, nodup_cons, nodup_append],
-    simp only [nodup_map (cons_injective) ih, true_and],
+    simp only [(nodup_map_iff (cons_injective)).mpr ih, true_and],
     intros x hxp hxn,
     rcases mem_map.mp hxp with ⟨c, _, hcx⟩,
     rcases mem_map.mp hxn with ⟨d, _, rfl⟩,
@@ -185,13 +185,13 @@ begin
     simp only [explode, mem_append, mem_map] at hc,
     rcases hc with ⟨a, ha, rfl⟩ | ⟨a, ha, rfl⟩,
     { rw nodup_cons,
-      have := not_mem_of_nodup_cons h,
+      have := (nodup_cons.mp h).1,
       have := pos_and_neg_not_mem_of_mem_explode_of_not_mem ha this,
-      exact ⟨this.1, ih (nodup_of_nodup_cons h) ha⟩ },
+      exact ⟨this.1, ih (nodup_cons.mp h).2 ha⟩ },
     { rw nodup_cons,
-      have := not_mem_of_nodup_cons h,
+      have := (nodup_cons.mp h).1,
       have := pos_and_neg_not_mem_of_mem_explode_of_not_mem ha this,
-      exact ⟨this.2, ih (nodup_of_nodup_cons h) ha⟩ } }
+      exact ⟨this.2, ih (nodup_cons.mp h).2 ha⟩ } }
 end
 
 theorem xor_pos_neg_mem_clause_of_nodup_of_mem_explode_of_mem (h : nodup l) :
@@ -203,9 +203,9 @@ begin
     rintros (⟨a, ha, rfl⟩ | ⟨a, ha, rfl⟩) hc;
     { rcases eq_or_mem_of_mem_cons hc with (rfl | hv),
       { simp [pos_and_neg_not_mem_of_mem_explode_of_not_mem ha 
-            (not_mem_of_nodup_cons h)] },
-      { rcases ih (nodup_of_nodup_cons h) ha hv with ⟨hp, hn⟩ | ⟨hp, hn⟩;
-        { simp [hp, hn, ne_of_mem_of_not_mem hv (not_mem_of_nodup_cons h)] } } } }
+            (nodup_cons.mp h).1] },
+      { rcases ih (nodup_cons.mp h).2 ha hv with ⟨hp, hn⟩ | ⟨hp, hn⟩;
+        { simp [hp, hn, ne_of_mem_of_not_mem hv (nodup_cons.mp h).1] } } } }
 end
 
 end explode

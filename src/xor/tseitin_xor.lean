@@ -67,30 +67,28 @@ begin
 end
 
 -- Note: l and g can be made implicit args
-def linear_xor (hk : k ≥ 3) : Π (l : list (literal V)), Π (g : gensym V),
-  (disjoint g.stock (clause.vars l)) → cnf V
-| l g hdis := if h : length l ≤ k then direct_xor l else
-                have length ((Pos g.fresh.1) :: (l.drop (k - 1))) < length l,
-                  from (drop_len_lt _ hk (not_le.mp h)),
-                (direct_xor (l.take (k - 1) ++ [(Neg g.fresh.1)])) ++
-                (linear_xor ((Pos g.fresh.1) :: (l.drop (k - 1))) (g.fresh.2)
-                (disjoint_fresh_of_disjoint hk hdis))
+def linear_xor (hk : k ≥ 3) : list (literal V) → gensym V → cnf V
+| l g := if h : length l ≤ k then direct_xor l else
+           have length ((Pos g.fresh.1) :: (l.drop (k - 1))) < length l,
+             from (drop_len_lt _ hk (not_le.mp h)),
+           (direct_xor (l.take (k - 1) ++ [(Neg g.fresh.1)])) ++
+           (linear_xor ((Pos g.fresh.1) :: (l.drop (k - 1))) (g.fresh.2))
 using_well_founded {
   rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ.1)⟩],
   dec_tac := tactic.assumption
 }
 
-lemma linear_base_case (hk : k ≥ 3) (hdis : disjoint g.stock (clause.vars l)) : 
-  length l ≤ k → linear_xor hk l g hdis = direct_xor l :=
+lemma linear_base_case (hk : k ≥ 3) :
+  length l ≤ k → linear_xor hk l g = direct_xor l :=
 assume h, by { rw linear_xor, simp only [h, if_true] }
 
 theorem mem_linear_xor_vars_of_mem_vars (hk : k ≥ 3)
   (hdis : disjoint g.stock (clause.vars l)) :
-  v ∈ (clause.vars l) → v ∈ (linear_xor hk l g hdis).vars :=
+  v ∈ (clause.vars l) → v ∈ (linear_xor hk l g).vars :=
 begin
   induction l using strong_induction_on_lists with l ih generalizing g,
   by_cases hl : length l ≤ k,
-  { rw linear_base_case hk hdis hl, rw vars_direct_xor, exact id },
+  { rw linear_base_case hk hl, rw vars_direct_xor, exact id },
   { intro h,
     rw linear_xor,
     simp [hl],
@@ -109,11 +107,11 @@ end
 
 theorem not_mem_linear_xor_vars_of_not_mem_vars_of_not_mem_stock 
   (hk : k ≥ 3) (hdis : disjoint g.stock (clause.vars l)) :
-  v ∉ (clause.vars l) → v ∉ g.stock → v ∉ (linear_xor hk l g hdis).vars :=
+  v ∉ (clause.vars l) → v ∉ g.stock → v ∉ (linear_xor hk l g).vars :=
 begin
   induction l using strong_induction_on_lists with l ih generalizing g,
   by_cases hl : length l ≤ k,
-  { rw [linear_base_case hk hdis hl, vars_direct_xor l], tautology },
+  { rw [linear_base_case hk hl, vars_direct_xor l], tautology },
   { intros hvars hg,
     rw linear_xor,
     simp [hl],
@@ -143,21 +141,132 @@ begin
       exact ih _ h₁ h₂ h₃ h₄ } }
 end
 
--- A slightly stronger statement
 lemma linear_forward (hk : k ≥ 3) (hdis : disjoint g.stock (clause.vars l)) :
-  cnf.eval τ (linear_xor hk l g hdis) = tt → cnf.eval τ (direct_xor l) = tt :=
+  Xor.eval τ l = tt → ∃ (σ : assignment V), 
+  (linear_xor hk l g).eval σ = tt ∧ (τ≡(clause.vars l)≡σ) :=
 begin
+  intro he,
+  induction l using strong_induction_on_lists with l ih generalizing g τ,
+  by_cases hl : length l ≤ k,
+  { use τ, rw [linear_base_case hk hl, eval_direct_xor_eq_eval_Xor], simp [he] },
+  { rw [eval_eq_bodd_count_tt,
+      ← (take_append_drop (k - 1) l), count_tt_append, bodd_add] at he,
+
+    have hnotmem := set.disjoint_left.mp hdis (g.fresh_mem_stock),
+    have h₁ := drop_len_lt (Pos g.fresh.1) hk (not_le.mp hl),
+    have h₂ := disjoint_fresh_of_disjoint hk hdis,
+    have htakevars := vars_subset_of_subset (take_subset (k - 1) l),
+    have hdropvars := vars_subset_of_subset (drop_subset (k - 1) l),
+
+    rw linear_xor,
+    simp [hl, cnf.eval_append],
+
+    -- Case on the truth value of the last n - k + 1 variables
+    -- Note: the proof is symmetric, so any tightening-up can be done in both
+    cases hc : bodd (clause.count_tt τ (take (k - 1) l)),
+    { rw [hc, bool.bxor_ff_left] at he,
+      rcases exists_eqod_and_eq_of_not_mem τ ff hnotmem with ⟨γ, heqod, hg⟩,
+      have : bodd (clause.count_tt γ (Pos g.fresh.1 :: drop (k - 1) l)) = tt,
+      { simp only [count_tt_cons, literal.eval, hg, cond,
+          ← count_tt_eq_of_eqod (eqod_subset hdropvars heqod), he] },
+      rw [← eval_eq_bodd_count_tt] at this,
+
+      -- Apply the induction hypothesis
+      rcases (ih _ h₁ h₂ this) with ⟨γ₂, he₂, hg₂⟩,
+
+      have heqod₂ : eqod (assignment.ite (cnf.vars (linear_xor hk (Pos g.fresh.1 :: (l.drop (k - 1))) g.fresh.2)) γ₂ γ) γ (clause.vars l),
+      { intros v hv,
+        by_cases hmem : v ∈ clause.vars (l.drop (k - 1)),
+        { have h₃ := mem_vars_cons_of_mem_vars (Pos g.fresh.1) hmem,
+          rw [ite_pos (mem_linear_xor_vars_of_mem_vars hk h₂ h₃), hg₂ v h₃] },
+        { have hdis₂ := set.disjoint_right.mp hdis hv,
+          have hne : v ≠ g.fresh.1,
+          { intro hcon,
+            exact (hcon ▸ hdis₂) (fresh_mem_stock g) },
+          have : v ∉ clause.vars (Pos g.fresh.1 :: drop (k - 1) l),
+          { simp [clause.vars, var],
+            rintros (hcon | hcon),
+            { exact hne hcon },
+            { exact hmem hcon } },
+          have hstock : v ∉ g.fresh.2.stock,
+          { intro hcon,
+            exact hdis₂ ((fresh_stock_subset g) hcon) },
+          rw ite_neg (not_mem_linear_xor_vars_of_not_mem_vars_of_not_mem_stock hk h₂ this hstock) } },
+        
+      use assignment.ite (cnf.vars (linear_xor hk (Pos g.fresh.1 :: (l.drop (k - 1))) g.fresh.2)) γ₂ γ,
+      split,
+      { split,
+        { simp [eval_direct_xor_eq_eval_Xor, eval_eq_bodd_count_tt, 
+            count_tt_append, bodd_add, literal.eval, hg],
+          have : g.fresh.1 ∈ clause.vars (Pos g.fresh.1 :: (l.drop (k - 1))),
+          { exact mem_vars_cons_self _ _ },
+          simp [ite_pos (mem_linear_xor_vars_of_mem_vars hk h₂ this), 
+            ← (hg₂ g.fresh.1 this), hg,
+            count_tt_eq_of_eqod (eqod_subset htakevars heqod₂),
+            ← count_tt_eq_of_eqod (eqod_subset htakevars heqod), hc] },
+        { exact he₂ ▸ eval_eq_cnf_of_eqod (ite_eqod _ _ _) } },
+      { exact eqod.trans heqod (heqod₂.symm) } },
+    {
+      simp only [hc, bnot_eq_true_eq_eq_ff, tt_bxor] at he,
+        rcases exists_eqod_and_eq_of_not_mem τ tt hnotmem with ⟨γ, heqod, hg⟩,
+        have : bodd (clause.count_tt γ (Pos g.fresh.1 :: drop (k - 1) l)) = tt,
+        { simp only [count_tt_cons, literal.eval, hg, cond, 
+            ← count_tt_eq_of_eqod (eqod_subset hdropvars heqod), he, bodd_succ, 
+            bodd_add, bodd_zero, bool.bnot_false, bool.bxor_ff_right], },
+        rw [← eval_eq_bodd_count_tt] at this,
+
+        -- Apply the induction hypothesis
+        rcases (ih _ h₁ h₂ this) with ⟨γ₂, he₂, hg₂⟩,
+
+        have heqod₂ : eqod (assignment.ite (cnf.vars (linear_xor hk (Pos g.fresh.1 :: (l.drop (k - 1))) g.fresh.2)) γ₂ γ) γ (clause.vars l),
+        { intros v hv,
+          by_cases hmem : v ∈ clause.vars (l.drop (k - 1)),
+          { have h₃ := mem_vars_cons_of_mem_vars (Pos g.fresh.1) hmem,
+            rw [ite_pos (mem_linear_xor_vars_of_mem_vars hk h₂ h₃), hg₂ v h₃] },
+          { have hdis₂ := set.disjoint_right.mp hdis hv,
+            have hne : v ≠ g.fresh.1,
+            { intro hcon,
+              exact (hcon ▸ hdis₂) (fresh_mem_stock g) },
+            have : v ∉ clause.vars (Pos g.fresh.1 :: drop (k - 1) l),
+            { simp [clause.vars, var],
+              rintros (hcon | hcon),
+              { exact hne hcon },
+              { exact hmem hcon } },
+            have hstock : v ∉ g.fresh.2.stock,
+            { intro hcon,
+              exact hdis₂ ((fresh_stock_subset g) hcon) },
+            rw ite_neg (not_mem_linear_xor_vars_of_not_mem_vars_of_not_mem_stock hk h₂ this hstock) } },
+        
+        use assignment.ite (cnf.vars (linear_xor hk (Pos g.fresh.1 :: (l.drop (k - 1))) g.fresh.2)) γ₂ γ,
+        split,
+        { split,
+          { simp [eval_direct_xor_eq_eval_Xor, eval_eq_bodd_count_tt, 
+              count_tt_append, bodd_add, literal.eval, hg],
+            have : g.fresh.1 ∈ clause.vars (Pos g.fresh.1 :: (l.drop (k - 1))),
+            { exact mem_vars_cons_self _ _ },
+            simp [ite_pos (mem_linear_xor_vars_of_mem_vars hk h₂ this), 
+              ← (hg₂ g.fresh.1 this), hg,
+              count_tt_eq_of_eqod (eqod_subset htakevars heqod₂),
+              ← count_tt_eq_of_eqod (eqod_subset htakevars heqod), hc] },
+          { exact he₂ ▸ eval_eq_cnf_of_eqod (ite_eqod _ _ _) } },
+        { exact eqod.trans heqod heqod₂.symm } } } 
+end
+
+lemma linear_reverse (hk : k ≥ 3) (hdis : disjoint g.stock (clause.vars l)) :
+  cnf.eval τ (linear_xor hk l g) = tt → Xor.eval τ l = tt :=
+begin
+  intro he,
   induction l using strong_induction_on_lists with l ih generalizing g,
   by_cases hl : length l ≤ k,
-  { rw linear_base_case hk hdis hl, exact id },
-  { intro h,
-    rw linear_xor at h,
-    simp [hl, cnf.eval_append] at h,
-    rcases h with ⟨hdir, hrec⟩,
+  { rw [linear_base_case hk hl, eval_direct_xor_eq_eval_Xor] at he, exact he },
+  { rw linear_xor at he,
+    simp [hl, cnf.eval_append] at he,
+    rcases he with ⟨hdir, hrec⟩,
     have h₁ := drop_len_lt (Pos g.fresh.1) hk (not_le.mp hl),
     have h₂ := disjoint_fresh_of_disjoint hk hdis,
     have ihred := ih _ h₁ h₂ hrec,
-    rw [eval_direct_xor_eq_eval_Xor, eval_eq_bodd_count_tt] at ihred hdir |-,
+    rw eval_direct_xor_eq_eval_Xor at hdir,
+    rw eval_eq_bodd_count_tt at ihred hdir |-,
     have := congr_arg ((clause.count_tt τ)) (take_append_drop (k - 1) l).symm,
     have := congr_arg bodd this,
     cases hnew : (τ g.fresh.1),
@@ -169,125 +278,16 @@ begin
       exact this } }
 end
 
-theorem linear_sequiv (hk : k ≥ 3) (hdis : disjoint g.stock (clause.vars l)) :
-  sequiv (linear_xor hk l g hdis) (direct_xor l) (clause.vars l) :=
-begin
-  induction l using strong_induction_on_lists with l ih generalizing g,
-  by_cases hl : length l ≤ k,
-  { rw linear_base_case hk hdis hl },
-  { intro τ, split,
-    -- forward direction: linear -> direct
-    { rintros ⟨σ, hl, hs⟩,
-      use [σ, linear_forward hk hdis hl, hs] },
-    -- reverse direction: direct -> linear
-    { rintros ⟨σ, he, hs⟩,
-
-      rw [eval_direct_xor_eq_eval_Xor, eval_eq_bodd_count_tt,
-        ← (take_append_drop (k - 1) l), count_tt_append, bodd_add] at he,
-
-      have hnotmem := set.disjoint_left.mp hdis (g.fresh_mem_stock),
-      have h₁ := drop_len_lt (Pos g.fresh.1) hk (not_le.mp hl),
-      have h₂ := disjoint_fresh_of_disjoint hk hdis,
-
-      have htakevars := vars_subset_of_subset (take_subset (k - 1) l),
-      have hdropvars := vars_subset_of_subset (drop_subset (k - 1) l),
-
-      rw linear_xor,
-      simp [hl, cnf.eval_append],
-
-      -- Case on the truth value of the last n - k + 1 variables
-      -- Note: the proof is symmetric, so any tightening-up can be done in both
-      cases hc : bodd (clause.count_tt σ (take (k - 1) l)),
-      { rw [hc, bool.bxor_ff_left] at he,
-        rcases exists_eqod_and_eq_of_not_mem σ ff hnotmem with ⟨γ, heqod, hg⟩,
-        have : bodd (clause.count_tt γ (Pos g.fresh.1 :: drop (k - 1) l)) = tt,
-        { simp only [count_tt_cons, literal.eval, hg, cond,
-            ← count_tt_eq_of_eqod (eqod_subset hdropvars heqod), he] },
-        rw [← eval_eq_bodd_count_tt, ← eval_direct_xor_eq_eval_Xor] at this,
-
-        -- Apply the induction hypothesis
-        rcases (ih _ h₁ h₂ γ).mpr ⟨γ, this, eqod.refl _ _⟩ with ⟨γ₂, he₂, hg₂⟩,
-
-        have heqod₂ : eqod (assignment.ite (cnf.vars (linear_xor hk (Pos g.fresh.1 :: (l.drop (k - 1))) g.fresh.2 h₂)) γ₂ γ) γ (clause.vars l),
-        { intros v hv,
-          by_cases hmem : v ∈ clause.vars (l.drop (k - 1)),
-          { have h₃ := mem_vars_cons_of_mem_vars (Pos g.fresh.1) hmem,
-            rw [ite_pos (mem_linear_xor_vars_of_mem_vars hk h₂ h₃), hg₂ v h₃] },
-          { have hdis₂ := set.disjoint_right.mp hdis hv,
-            have hne : v ≠ g.fresh.1,
-            { intro hcon,
-              exact (hcon ▸ hdis₂) (fresh_mem_stock g) },
-            have : v ∉ clause.vars (Pos g.fresh.1 :: drop (k - 1) l),
-            { simp [clause.vars, var],
-              rintros (hcon | hcon),
-              { exact hne hcon },
-              { exact hmem hcon } },
-            have hstock : v ∉ g.fresh.2.stock,
-            { intro hcon,
-              exact hdis₂ ((fresh_stock_subset g) hcon) },
-            rw ite_neg (not_mem_linear_xor_vars_of_not_mem_vars_of_not_mem_stock hk h₂ this hstock) } },
-        
-        use assignment.ite (cnf.vars (linear_xor hk (Pos g.fresh.1 :: (l.drop (k - 1))) g.fresh.2 h₂)) γ₂ γ,
-        split,
-        { split,
-          { simp [eval_direct_xor_eq_eval_Xor, eval_eq_bodd_count_tt, 
-              count_tt_append, bodd_add, literal.eval, hg],
-            have : g.fresh.1 ∈ clause.vars (Pos g.fresh.1 :: (l.drop (k - 1))),
-            { exact mem_vars_cons_self _ _ },
-            simp [ite_pos (mem_linear_xor_vars_of_mem_vars hk h₂ this), 
-              ← (hg₂ g.fresh.1 this), hg,
-              count_tt_eq_of_eqod (eqod_subset htakevars heqod₂),
-              ← count_tt_eq_of_eqod (eqod_subset htakevars heqod), hc] },
-          { exact he₂ ▸ eval_eq_cnf_of_eqod (ite_eqod _ _ _) } },
-        { exact eqod.trans (eqod.trans hs heqod) heqod₂.symm } },
-      { simp only [hc, bnot_eq_true_eq_eq_ff, tt_bxor] at he,
-        rcases exists_eqod_and_eq_of_not_mem σ tt hnotmem with ⟨γ, heqod, hg⟩,
-        have : bodd (clause.count_tt γ (Pos g.fresh.1 :: drop (k - 1) l)) = tt,
-        { simp only [count_tt_cons, literal.eval, hg, cond, 
-            ← count_tt_eq_of_eqod (eqod_subset hdropvars heqod), he, bodd_succ, 
-            bodd_add, bodd_zero, bool.bnot_false, bool.bxor_ff_right], },
-        rw [← eval_eq_bodd_count_tt, ← eval_direct_xor_eq_eval_Xor] at this,
-
-        -- Apply the induction hypothesis
-        rcases (ih _ h₁ h₂ γ).mpr ⟨γ, this, eqod.refl _ _⟩ with ⟨γ₂, he₂, hg₂⟩,
-
-        have heqod₂ : eqod (assignment.ite (cnf.vars (linear_xor hk (Pos g.fresh.1 :: (l.drop (k - 1))) g.fresh.2 h₂)) γ₂ γ) γ (clause.vars l),
-        { intros v hv,
-          by_cases hmem : v ∈ clause.vars (l.drop (k - 1)),
-          { have h₃ := mem_vars_cons_of_mem_vars (Pos g.fresh.1) hmem,
-            rw [ite_pos (mem_linear_xor_vars_of_mem_vars hk h₂ h₃), hg₂ v h₃] },
-          { have hdis₂ := set.disjoint_right.mp hdis hv,
-            have hne : v ≠ g.fresh.1,
-            { intro hcon,
-              exact (hcon ▸ hdis₂) (fresh_mem_stock g) },
-            have : v ∉ clause.vars (Pos g.fresh.1 :: drop (k - 1) l),
-            { simp [clause.vars, var],
-              rintros (hcon | hcon),
-              { exact hne hcon },
-              { exact hmem hcon } },
-            have hstock : v ∉ g.fresh.2.stock,
-            { intro hcon,
-              exact hdis₂ ((fresh_stock_subset g) hcon) },
-            rw ite_neg (not_mem_linear_xor_vars_of_not_mem_vars_of_not_mem_stock hk h₂ this hstock) } },
-        
-        use assignment.ite (cnf.vars (linear_xor hk (Pos g.fresh.1 :: (l.drop (k - 1))) g.fresh.2 h₂)) γ₂ γ,
-        split,
-        { split,
-          { simp [eval_direct_xor_eq_eval_Xor, eval_eq_bodd_count_tt, 
-              count_tt_append, bodd_add, literal.eval, hg],
-            have : g.fresh.1 ∈ clause.vars (Pos g.fresh.1 :: (l.drop (k - 1))),
-            { exact mem_vars_cons_self _ _ },
-            simp [ite_pos (mem_linear_xor_vars_of_mem_vars hk h₂ this), 
-              ← (hg₂ g.fresh.1 this), hg,
-              count_tt_eq_of_eqod (eqod_subset htakevars heqod₂),
-              ← count_tt_eq_of_eqod (eqod_subset htakevars heqod), hc] },
-          { exact he₂ ▸ eval_eq_cnf_of_eqod (ite_eqod _ _ _) } },
-        { exact eqod.trans (eqod.trans hs heqod) heqod₂.symm } } } }
-end
-
 theorem linear_xor_encodes_Xor (hk : k ≥ 3) (hdis : disjoint g.stock (clause.vars l)) :
-  encodes Xor (linear_xor hk l g hdis) l :=
-encodes_of_encodes_of_sequiv (direct_xor_encodes_Xor l) (linear_sequiv hk hdis).symm
+  encodes Xor (linear_xor hk l g) l :=
+begin
+  intro τ,
+  split,
+  { exact linear_forward hk hdis },
+  { rintros ⟨σ, he, heqod⟩,
+    rw [← Xor.eval, eval_eq_Xor_of_eqod heqod],
+    exact linear_reverse hk hdis he }
+end
 
 -- Note: The proofs here are symmetric with the linear encoding ones
 -- If an improvement is made to the above proofs, simplify here
