@@ -226,20 +226,20 @@ def equisatisfiable (f₁ f₂ : cnf V) :=
   (∃ (τ₁ : assignment V), cnf.eval τ₁ f₁ = tt) ↔ 
    ∃ (τ₂ : assignment V), cnf.eval τ₂ f₂ = tt
 
-notation f₁ ` ≈ ` f₂ := equisatisfiable f₁ f₂
+--notation f₁ ` ≈ ` f₂ := equisatisfiable f₁ f₂
 
 @[simp] theorem equisatisfiable_nil : equisatisfiable ([] : cnf V) [] :=
 ⟨λ h, h, λ h, h⟩
 
-@[refl] theorem equisatisfiable.refl (f : cnf V) : f ≈ f :=
+@[refl] theorem equisatisfiable.refl (f : cnf V) : equisatisfiable f f :=
 ⟨λ h, h, λ h, h⟩
 
 @[symm] theorem equisatisfiable.symm (f₁ f₂ : cnf V) :
-  f₁ ≈ f₂ → f₂ ≈ f₁ :=
+  equisatisfiable f₁ f₂ → equisatisfiable f₂ f₁ :=
 assume h, ⟨h.2, h.1⟩
 
 @[trans] theorem equisatisfiable.trans {f₁ f₂ f₃ : cnf V} :
-  f₁ ≈ f₂ → f₂ ≈ f₃ → f₁ ≈ f₃ :=
+  equisatisfiable f₁ f₂ → equisatisfiable f₂ f₃ → equisatisfiable f₁ f₃ :=
 begin
   rintros ⟨hmp1, hmpr1⟩ ⟨hmp2, hmpr2⟩,
   split,
@@ -259,7 +259,7 @@ open cnf
 open list
 
 theorem eval_eq_cnf_of_eqod {τ₁ τ₂ : assignment V} {f : cnf V} :
-  (τ₁ ≡f.vars≡ τ₂) → f.eval τ₁ = f.eval τ₂ :=
+  (eqod τ₁ τ₂ f.vars) → f.eval τ₁ = f.eval τ₂ :=
 begin
   intro h,
   cases hev : (cnf.eval τ₂ f),

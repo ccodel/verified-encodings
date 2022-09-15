@@ -501,6 +501,18 @@ theorem pos_count_ff_iff_exists_ff {τ : assignment V} {c : clause V} :
   c.count_ff τ > 0 ↔ ∃ l ∈ c, literal.is_false τ l :=
 by simp [clause.count_ff, countp_pos]
 
+theorem count_tt_perm {τ : assignment V} {c₁ c₂ : clause V} :
+  c₁ ~ c₂ → c₁.count_tt τ = c₂.count_tt τ :=
+begin
+  intro hp,
+  induction hp with x l₂ l₂' p IH  x y l₂  l₂ m₂ r₂ p₁ p₂ IH₁ IH₂,
+  { refl },
+  { simp [count_tt_cons, IH] },
+  { simp [count_tt_cons],
+    cases literal.eval τ x; { cases literal.eval τ y; simp } },
+  { exact eq.trans IH₁ IH₂ }
+end
+
 /-! # Flip counting -/
 
 -- If two clauses have the same length, literals can be compared at each
@@ -687,10 +699,20 @@ begin
   induction c₁ with l ls ih,
   { simp only [finset.empty_union, vars_nil, nil_append] },
   { simp only [cons_append, clause.vars, ih, finset.union_assoc] }
-end 
+end
 
-theorem mem_vars_of_mem {c : clause V} {l : literal V} : 
-  l ∈ c → l.var ∈ c.vars :=
+theorem vars_perm {c₁ c₂ : clause V} : c₁ ~ c₂ → c₁.vars = c₂.vars :=
+begin
+  intro hp,
+  induction hp with x l₂ l₂' p IH  x y l₂  l₂ m₂ r₂ p₁ p₂ IH₁ IH₂,
+  { refl },
+  { simp [clause.vars, IH] },
+  { simp [clause.vars, ← finset.union_assoc],
+    rw finset.union_comm {x.var} {y.var} },
+  { exact eq.trans IH₁ IH₂ }
+end
+
+theorem mem_vars_of_mem {c : clause V} {l : literal V} : l ∈ c → l.var ∈ c.vars :=
 begin
   induction c with d ds ih,
   { simp },
@@ -822,7 +844,7 @@ open literal
 open clause
 
 theorem eval_eq_clause_of_eqod {τ₁ τ₂ : assignment V} {c : clause V} :
-  (τ₁ ≡c.vars≡ τ₂) → c.eval τ₁ = c.eval τ₂ :=
+  (eqod τ₁ τ₂ c.vars) → c.eval τ₁ = c.eval τ₂ :=
 begin
   intro h,
   cases hev : (c.eval τ₂),
@@ -838,7 +860,7 @@ end
 
 -- Can replace τ in count_tt if eqod
 theorem count_tt_eq_of_eqod {τ₁ τ₂ : assignment V} {c : clause V} :
-  (τ₁ ≡c.vars≡ τ₂) → clause.count_tt τ₁ c = clause.count_tt τ₂ c :=
+  (eqod τ₁ τ₂ c.vars) → clause.count_tt τ₁ c = clause.count_tt τ₂ c :=
 begin
   induction c with l ls ih,
   { simp only [count_tt_nil, eqod_nil, vars_nil, forall_true_left] },

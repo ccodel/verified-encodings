@@ -1,8 +1,8 @@
 [package]
 name = "verified-encodings"
 version = "0.1"
-lean_version = "leanprover-community/lean:3.42.1"
+lean_version = "leanprover-community/lean:3.48.0"
 path = "src"
 
 [dependencies]
-mathlib = {git = "https://github.com/leanprover-community/mathlib", rev = "06bdd8bc4c8f16d8001e513ebc4f6a0863f58f14"}
+mathlib = {git = "https://github.com/leanprover-community/mathlib", rev = "3077b72c1c3d42be2f8e34b1ace7d49074f61222"}

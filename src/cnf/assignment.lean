@@ -36,31 +36,31 @@ section eqod
 def eqod (τ₁ τ₂ : assignment V) (s : finset V) : Prop := ∀ v ∈ s, τ₁ v = τ₂ v
 
 -- TODO how to properly set up this notation so that () are not required
-notation τ₁ ` ≡` s `≡ ` τ₂ := eqod τ₁ τ₂ s
+notation τ₁ ` ≡`:50 s `≡ `:40 τ₂ := eqod τ₁ τ₂ s
 
 variables {τ₁ τ₂ τ₃ : assignment V} {s s₁ s₂ : finset V} {v : V} {l : literal V}
 
-@[refl] theorem eqod.refl (τ : assignment V) (s : finset V) : τ ≡s≡ τ :=
+@[refl] theorem eqod.refl (τ : assignment V) (s : finset V) : eqod τ τ s :=
 by tautology
 
-@[symm] theorem eqod.symm : (τ₁ ≡s≡ τ₂) → (τ₂ ≡s≡ τ₁) :=
+@[symm] theorem eqod.symm : (eqod τ₁ τ₂ s) → (eqod τ₂ τ₁ s) :=
 assume h v hv, (h v hv).symm
 
-theorem eqod_comm : (τ₁ ≡s≡ τ₂) ↔ (τ₂ ≡s≡ τ₁) :=
+theorem eqod_comm : (eqod τ₁ τ₂ s) ↔ (eqod τ₂ τ₁ s) :=
 ⟨eqod.symm, eqod.symm⟩
 
-@[trans] theorem eqod.trans : (τ₁ ≡s≡ τ₂) → (τ₂ ≡s≡ τ₃) → (τ₁ ≡s≡ τ₃) :=
+@[trans] theorem eqod.trans : (eqod τ₁ τ₂ s) → (eqod τ₂ τ₃ s) → (eqod τ₁ τ₃ s) :=
 assume h₁ h₂ v hv, eq.trans (h₁ v hv) (h₂ v hv)
 
-@[simp] theorem eqod_nil (τ₁ τ₂ : assignment V) : τ₁ ≡∅≡ τ₂ :=
+@[simp] theorem eqod_nil (τ₁ τ₂ : assignment V) : eqod τ₁ τ₂ ∅ :=
 assume v hv, absurd hv (not_mem_empty v)
 
-theorem eqod_subset : s₁ ⊆ s₂ → (τ₁ ≡s₂≡ τ₂) → (τ₁ ≡s₁≡ τ₂) :=
+theorem eqod_subset : s₁ ⊆ s₂ → (eqod τ₁ τ₂ s₂) → (eqod τ₁ τ₂ s₁) :=
 assume h hs₂ v hv, hs₂ v (h hv)
 
 -- Can extend equivalence if equivalent on var
 theorem eqod_union_of_eqod_of_eq : 
-  (τ₁ ≡s≡ τ₂) → τ₁ v = τ₂ v → (τ₁ ≡({v} ∪ s)≡ τ₂) :=
+  (eqod τ₁ τ₂ s) → τ₁ v = τ₂ v → (eqod τ₁ τ₂ ({v} ∪ s)) :=
 begin
   intros heqod heq u hu,
   rcases mem_union.mp hu with h | h,
@@ -69,42 +69,33 @@ begin
 end
 
 -- Can also extend equivalence for unions of sets rather than singletons
-theorem eqod_union : (τ₁ ≡s₁≡ τ₂) → (τ₁ ≡s₂≡ τ₂) → (τ₁ ≡(s₁ ∪ s₂)≡ τ₂) :=
-begin
-  intros h₁ h₂ v hv,
-  rcases mem_union.mp hv with h | h,
-  { exact h₁ v h },
-  { exact h₂ v h }
-end
+theorem eqod_union : (eqod τ₁ τ₂ s₁) → (eqod τ₁ τ₂ s₂) → (eqod τ₁ τ₂ (s₁ ∪ s₂)) :=
+assume h₁ h₂ v hv, or.elim (mem_union.mp hv) (λ h, h₁ v h) (λ h, h₂ v h)
 
-theorem eqod_inter : (τ₁ ≡s₁≡ τ₂) → (τ₁ ≡s₂≡ τ₂) → (τ₁ ≡(s₁ ∩ s₂)≡ τ₂) :=
+theorem eqod_inter : (eqod τ₁ τ₂ s₁) → (eqod τ₁ τ₂ s₂) → (eqod τ₁ τ₂ (s₁ ∩ s₂)) :=
 assume h₁ _ v hv, h₁ v (mem_inter.mp hv).1
 
-theorem eqod_left_of_eqod_union : (τ₁ ≡(s₁ ∪ s₂)≡ τ₂) → (τ₁ ≡s₁≡ τ₂) :=
+theorem eqod_left_of_eqod_union : (eqod τ₁ τ₂ (s₁ ∪ s₂)) → (eqod τ₁ τ₂ s₁) :=
 assume h v hv, h v (mem_union_left s₂ hv)
 
-theorem eqod_right_of_eqod_union : (τ₁ ≡(s₁ ∪ s₂)≡ τ₂) → (τ₁ ≡s₂≡ τ₂) :=
+theorem eqod_right_of_eqod_union : (eqod τ₁ τ₂ (s₁ ∪ s₂)) → (eqod τ₁ τ₂ s₂) :=
 assume h v hv, h v (mem_union_right s₁ hv)
 
 /-! # Evaluation with eqod -/
 
 theorem eval_eq_of_eqod_of_var_mem :
-  (τ₁ ≡s≡ τ₂) → l.var ∈ s → l.eval τ₁ = l.eval τ₂ :=
+  (eqod τ₁ τ₂ s) → l.var ∈ s → l.eval τ₁ = l.eval τ₂ :=
 begin
   cases l,
-  { unfold var literal.eval,
-    intros h hl,
-    exact h l hl },
-  { unfold var literal.eval,
-    intros h hl,
-    exact congr_arg bnot (h l hl) }
+  { exact (λ h hl, h l hl) },
+  { exact (λ h hl, congr_arg bnot (h l hl)) }
 end
 
 -- Rather than extending the equivalence, as in [eqod_union_of_eqod_of_eq],
 -- sometimes we need to create an assignment that is equivalent 
 -- and agrees on one more specified value
 theorem exists_eqod_and_eq_of_not_mem (τ₁ : assignment V) (b : bool) :
-  v ∉ s → ∃ τ₂, (τ₁ ≡s≡ τ₂) ∧ τ₂ v = b :=
+  v ∉ s → ∃ τ₂, (eqod τ₁ τ₂ s) ∧ τ₂ v = b :=
 begin
   intro hv,
   use (λ x, if x = v then b else τ₁ x),
@@ -115,7 +106,7 @@ end
 
 -- The domain can be extended by whole finsets instead
 theorem exists_eqod_and_eq_of_disjoint (f : V → bool) :
-  disjoint s₁ s₂ → ∃ τ₂, (τ₁ ≡s₁≡ τ₂) ∧ (∀ v ∈ s₂, τ₂ v = f v) :=
+  disjoint s₁ s₂ → ∃ τ₂, (eqod τ₁ τ₂ s₁) ∧ (∀ v ∈ s₂, τ₂ v = f v) :=
 begin
   intro h,
   use (λ x, if x ∈ s₂ then f x else τ₁ x),
@@ -168,20 +159,20 @@ begin
 end
 
 theorem ite_eqod (s : finset V) (τ₁ τ₂ : assignment V) :
-  (assignment.ite s τ₁ τ₂) ≡s≡ τ₁ :=
+  eqod (assignment.ite s τ₁ τ₂) τ₁ s :=
 assume v hv, ite_pos hv _ _
 
 theorem ite_eqod_of_disjoint (τ₁ τ₂ : assignment V) {s₁ s₂ : finset V} :
-  disjoint s₁ s₂ → (τ₂ ≡s₂≡ (assignment.ite s₁ τ₁ τ₂)) :=
+  disjoint s₁ s₂ → (eqod τ₂ (assignment.ite s₁ τ₁ τ₂) s₂) :=
 assume h v hv, by simp [assignment.ite, disjoint_right.mp h hv]
 
 theorem ite_eqod_of_subset (τ₁ τ₂ : assignment V) {s₁ s₂ : finset V} :
-  s₂ ⊆ s₁ → (τ₁ ≡s₂≡ (assignment.ite s₁ τ₁ τ₂)) :=
+  s₂ ⊆ s₁ → (eqod τ₁ (assignment.ite s₁ τ₁ τ₂) s₂) :=
 assume h v hv, by simp [assignment.ite, h hv]
 
 -- TODO make similar theorems into rewrite rules rather than require input
 theorem ite_eq_second_of_eqod {τ₁ τ₂ : assignment V} {s : finset V} :
-  (τ₁ ≡s≡ τ₂) → assignment.ite s τ₁ τ₂ = τ₂ :=
+  (eqod τ₁ τ₂ s) → assignment.ite s τ₁ τ₂ = τ₂ :=
 begin
   intro h,
   apply function.funext_iff.mpr,

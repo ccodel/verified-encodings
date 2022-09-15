@@ -23,11 +23,11 @@ open assignment
 
 /- A CNF formula encodes a Boolean function -/
 def encodes (f : list bool → bool) (F : cnf V) (l : list (literal V)) :=
-  ∀ τ, (f (l.map (literal.eval τ)) = tt ↔ ∃ σ, F.eval σ = tt ∧ (τ ≡(clause.vars l)≡ σ))
+  ∀ τ, (f (l.map (literal.eval τ)) = tt ↔ ∃ σ, F.eval σ = tt ∧ (eqod τ σ (clause.vars l)))
 
 /- Definition of S-equivalence -/
 def sequiv (F₁ F₂ : cnf V) (s : finset V) := ∀ τ, 
-  ((∃ σ₁, F₁.eval σ₁ = tt ∧ (τ ≡s≡ σ₁)) ↔ (∃ σ₂, F₂.eval σ₂ = tt ∧ (τ ≡s≡ σ₂)))
+  ((∃ σ₁, F₁.eval σ₁ = tt ∧ (eqod τ σ₁ s)) ↔ (∃ σ₂, F₂.eval σ₂ = tt ∧ (eqod τ σ₂ s)))
 
 @[refl] theorem sequiv.refl (F : cnf V) (s : finset V) : sequiv F F s :=
 assume _, iff.rfl

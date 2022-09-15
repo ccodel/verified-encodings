@@ -33,15 +33,13 @@ by simp only [bool.forall_bool, iff_self, and_self]
 
 /- bxor -/
 
-notation a ` ⊕ ` b := bxor a b
+@[simp] theorem bxor_tt_left  : ∀ a, bxor tt a = !a := dec_trivial
+@[simp] theorem bxor_tt_right : ∀ a, bxor a tt = !a := dec_trivial
 
-@[simp] theorem bxor_tt_left  : ∀ a, tt ⊕ a = !a := dec_trivial
-@[simp] theorem bxor_tt_right : ∀ a, a ⊕ tt = !a := dec_trivial
-
-theorem bxor_conjunctive (a b : bool) : a ⊕ b = (a || b) && (!a || !b) :=
+theorem bxor_conjunctive (a b : bool) : bxor a b = (a || b) && (!a || !b) :=
 by cases a; cases b; dec_trivial
 
-theorem bxor_disjunctive (a b : bool) : a ⊕ b = (!a && b) || (a && !b) :=
+theorem bxor_disjunctive (a b : bool) : bxor a b = (!a && b) || (a && !b) :=
 by cases a; cases b; dec_trivial
 
 /- cond -/
@@ -221,7 +219,7 @@ theorem exists_append_mem_of_mem_of_ne {l : list α} {a b : α} :
   ((a ∈ l₁ ∧ b ∈ l₂) ∨ (a ∈ l₂ ∧ b ∈ l₁)) :=
 begin
   induction l with x xs ih,
-  { simp only [forall_false_left, not_mem_nil] },
+  { simp only [not_mem_nil, is_empty.forall_iff] },
   { intros ha hb hne,
     rcases eq_or_mem_of_mem_cons ha with (rfl | ha),
     { have := mem_of_ne_of_mem hne.symm hb,

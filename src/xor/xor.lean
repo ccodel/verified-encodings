@@ -61,6 +61,18 @@ begin
   { cases h : (l.eval τ); { simp [Xor.eval_cons, count_tt_cons, h, ih] } }
 end
 
+theorem eval_eq_of_perm {l₁ l₂ : list (literal V)} : l₁ ~ l₂ → 
+  ∀ (τ : assignment V), Xor.eval τ l₁ = Xor.eval τ l₂ :=
+begin
+  intros hp τ,
+  induction hp with x l₂ l₂' p IH  x y l₂  l₂ m₂ r₂ p₁ p₂ IH₁ IH₂,
+  { refl },
+  { simp [eval_cons, IH] },
+  { simp [eval_cons, ← bool.bxor_assoc],
+    rw bool.bxor_comm (literal.eval τ y) (literal.eval τ x) },
+  { exact eq.trans IH₁ IH₂ }
+end
+
 end eval
 
 end Xor
@@ -74,7 +86,7 @@ open clause
 open Xor
 
 theorem eval_eq_Xor_of_eqod {τ₁ τ₂ : assignment V} {l : list (literal V)} :
-  (τ₁ ≡(clause.vars l)≡ τ₂) → Xor.eval τ₁ l = Xor.eval τ₂ l :=
+  (eqod τ₁ τ₂ (clause.vars l)) → Xor.eval τ₁ l = Xor.eval τ₂ l :=
 begin
   induction l with l ls ih,
   { simp only [eqod_nil, Xor.eval_nil, forall_true_left, clause.vars_nil] },
