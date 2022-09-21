@@ -116,7 +116,7 @@ begin
           exact ⟨hil, h₂.symm⟩ },
         exact or.inr (ih this) } } },
   { induction l with l₁ ls ih,
-    { simp only [direct_amo_nil, not_mem_nil, forall_false_left] },
+    { simp only [direct_amo_nil, not_mem_nil, is_empty.forall_iff] },
     { cases ls with l₂ ls,
       { rw direct_amo_singleton, intro h, exact absurd h (not_mem_nil _) },
       cases ls with l₃ ls,

@@ -85,6 +85,21 @@ begin
       { simp [take, eval_cons_pos h₁,ih (succ_le_succ_iff.mp Hi) hl] } } }
 end
 
+theorem amo_take_of_tt {i : nat} (Hi : i < length l) :
+  (l.nth_le i Hi).eval τ = tt → alk.eval 1 τ (l.take (i + 1)) = tt :=
+assume ht, eval_zero τ l ▸ eval_take_tail_pos Hi ht
+
+theorem alo_take_tail {i : nat} (Hi : i < length l) :
+  alk.eval 1 τ (l.take (i + 1)) = tt →
+  ((l.nth_le i Hi).eval τ = tt ∨ alk.eval 1 τ (l.take i) = tt) :=
+begin
+  intro hlk,
+  cases hl : (l.nth_le i Hi).eval τ,
+  { rw eval_take_tail_neg Hi hl at hlk,
+    exact or.inr hlk },
+  { exact or.inl rfl }
+end
+
 theorem eval_tt_of_ge_of_eval_tt {k₁ k₂ : nat} : k₁ ≥ k₂ → 
   alk.eval k₁ τ l = tt → alk.eval k₂ τ l = tt :=
 begin
@@ -102,7 +117,7 @@ begin
 end
 
 theorem amk_alk_take {k : nat} {l : list (literal V)} {i : nat} :
-  i ≤ length l → ∀ (τ : assignment V), alk.eval k τ (l.take i) = tt →
+  i ≤ length l → ∀ {τ : assignment V}, alk.eval k τ (l.take i) = tt →
   amk.eval k τ l = tt → amk.eval 0 τ (l.drop i) = tt :=
 begin
   intros hi τ htake hamk,
@@ -113,7 +128,7 @@ begin
       rw drop,
       exact hamk },
     { cases k,
-      { exact eval_drop i.succ hamk },
+      { exact eval_drop hamk _ },
       { rw [length, succ_le_succ_iff] at hi,
         cases hl₁ : (l₁.eval τ),
         { rw [take, eval_cons_neg hl₁] at htake,
@@ -123,5 +138,69 @@ begin
           rw amk.eval_cons_pos hl₁ at hamk,
           exact ih hi htake hamk } } } }
 end
+
+theorem amk_eval_eq_alk_succ_eval (k : nat) (τ : assignment V) (l : list (literal V)) :
+  amk.eval k τ l = !(alk.eval (k + 1) τ l) :=
+begin
+  induction l with l₁ ls ih generalizing k,
+  { apply symm, simp },
+  { cases h₁ : l₁.eval τ,
+    { rw [amk.eval_cons_neg h₁, alk.eval_cons_neg h₁],
+      exact ih k },
+    { cases k,
+      { rw [amk.eval_cons_pos_zero h₁, alk.eval_cons_pos h₁, eval_zero],
+        exact bool.bnot_true },
+      { rw [amk.eval_cons_pos h₁, alk.eval_cons_pos h₁],
+        exact ih k } } }
+end
+
+theorem alk_split {k : nat} {l : list (literal V)} {τ : assignment V} :
+  alk.eval (k + 1) τ l = tt → ∃ {i : nat} (Hi : i < length l),
+  amk.eval 0 τ (l.take (i - 1)) = tt ∧ (l.nth_le i Hi).eval τ = tt ∧
+  alk.eval k τ (l.drop (i + 1)) = tt :=
+begin
+  intro halk,
+  induction l with l₁ ls ih generalizing k,
+  { simp at halk |-, assumption },
+  { cases h₁ : l₁.eval τ,
+    { rw eval_cons_neg h₁ at halk,
+      rcases ih halk with ⟨i, Hi, htake, he, hdrop⟩,
+      use i + 1,
+      simp [Hi, hdrop],
+      cases i,
+      { simpa },
+      { simp at htake, simpa [amk.eval_cons_neg h₁, htake] } },
+    { rw eval_cons_pos h₁ at halk, use 0, simpa [h₁] } }
+end
+
+theorem alk_of_amk_of_gt {j : nat} {l : list (literal V)} {τ : assignment V} :
+  amk.eval j τ l = tt → ∀ {k}, j < k → alk.eval k τ l = ff :=
+begin
+  induction l with l₁ ls ih generalizing j,
+  { simp, intros k hk, exact pos_of_gt hk },
+  { intros hmk k hk,
+    cases j,
+    { have ihred := ih (amz_of_amz_cons hmk) hk,
+      rw amz_eval_tt_iff_forall_eval_ff at hmk,
+      rw eval_cons_neg (hmk l₁ (mem_cons_self _ _)),
+      exact ihred },
+    { cases hl₁ : l₁.eval τ,
+      { rw amk.eval_cons_neg hl₁ at hmk,
+        rw eval_cons_neg hl₁,
+        exact ih hmk hk },
+      { cases k with k,
+        { linarith },
+        { rw amk.eval_cons_pos hl₁ at hmk,
+          rw eval_cons_pos hl₁,
+          exact ih hmk (succ_lt_succ_iff.mp hk) } } } }
+end
+
+/-
+theorem alk_or_amk_pred_of_amk {k : nat} {l : list (literal V)} {τ : assignment V} :
+  amk.eval (k + 1) τ l = tt → alk.eval (k + 1) τ l = tt ∨ amk.eval k τ l = tt :=
+begin
+  sorry
+end
+-/
 
 end alk

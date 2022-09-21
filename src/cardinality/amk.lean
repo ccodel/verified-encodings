@@ -23,95 +23,6 @@ def amk (k : nat) (l : list bool) : bool := l.count tt ≤ k
 
 namespace amk
 
-/-
-theorem eval_tt_of_eval_tt_cons {τ : assignment V} {l : list (literal V)} 
-  {lit : literal V} : amz.eval τ (lit :: l) = tt → amz.eval τ l = tt :=
-begin
-  intro h,
-  rw eval_tt_iff_forall_eval_ff at h,
-  apply eval_tt_iff_forall_eval_ff.mpr,
-  intros lit hl,
-  exact h lit (mem_cons_of_mem _ hl)
-end
-
-theorem eval_cons_eq_of_eval_ff {τ : assignment V} {l : list (literal V)}
-  {lit : literal V} : lit.eval τ = ff → amz.eval τ (lit :: l) = amz.eval τ l :=
-begin
-  intro h,
-  simp only [amz.eval, amz, h, map, count_cons_of_ne, ne.def, not_false_iff]
-end
-
-theorem eval_sublist {τ : assignment V} {l₁ l₂ : list (literal V)} :
-  l₁ <+ l₂ → amz.eval τ l₂ = tt → amz.eval τ l₁ = tt :=
-begin
-  simp [amz.eval, amz],
-  intros hs hamz,
-  have := sublist.count_le (sublist.map (literal.eval τ) hs) tt,
-  simp [hamz] at this,
-  exact this
-end
-
-theorem eval_drop {τ : assignment V} {l : list (literal V)} : ∀ i, 
-  amz.eval τ l = tt → amz.eval τ (l.drop i) = tt :=
-assume i hamz, eval_sublist (drop_sublist i l) hamz
-
--- Encoding of at-most-zero is a clause for each literal, negated
-def direct_amz (l : list (literal V)) : cnf V := l.map (λ x, [literal.flip x])
-
-theorem direct_amz_encodes_amz (l : list (literal V)) :
-  l ≠ [] → encodes amz (direct_amz l) l :=
-begin
-  rw direct_amz,
-  intros hnil τ,
-  rcases exists_mem_of_ne_nil l hnil with ⟨lit, hlit⟩,
-  split,
-  { intro h,
-    use τ,
-    split,
-    { rw cnf.eval_tt_iff_forall_clause_eval_tt,
-      intros c hc,
-      rcases mem_map.mp hc with ⟨lit₂, hlit₂, rfl⟩,
-      rw eval_singleton,
-      rw eval_flip,
-      simp only [amz, to_bool_iff] at h,
-      have := mt (mem_map.mpr) (not_mem_of_count_eq_zero h),
-      simp only [not_exists, eq_ff_eq_not_eq_tt, not_and] at this,
-      simp only [this lit₂ hlit₂, bool.bnot_false] },
-    { exact eqod.refl τ _ } },
-  { rintros ⟨σ, heval, heqod⟩,
-    rw cnf.eval_tt_iff_forall_clause_eval_tt at heval,
-    simp [amz],
-    simp at heval,
-    apply count_eq_zero_of_not_mem,
-    simp [mem_map],
-    intros lit₂ hlit₂,
-    have := mem_vars_of_mem hlit₂,
-    rw eval_eq_of_eqod_of_var_mem heqod this,
-    have := heval lit₂ hlit₂,
-    simpa [eval_flip] using this }
-end
-
--- TODO: There's a way to get a direct proof
-theorem eval_eq_amz_of_eqod {τ₁ τ₂ : assignment V} {l : list (literal V)} :
-  (τ₁ ≡clause.vars l≡ τ₂) → amz.eval τ₁ l = amz.eval τ₂ l :=
-begin
-  intro heqod,
-  induction l with l ls ih,
-  { simp only [amz.eval_nil] },
-  { have : literal.eval τ₁ l = literal.eval τ₂ l,
-    { have := mem_vars_of_mem (mem_cons_self l ls),
-      exact eval_eq_of_eqod_of_var_mem heqod this },
-    cases h : (literal.eval τ₁ l),
-    { rw eval_cons_eq_of_eval_ff h,
-      rw this at h,
-      rw eval_cons_eq_of_eval_ff h,
-      exact ih (eqod_subset (vars_subset_of_vars_cons l ls) heqod) },
-    { rw eval_ff_iff_exists_eval_tt.mpr ⟨l, mem_cons_self l ls, h⟩,
-      rw this at h,
-      rw eval_ff_iff_exists_eval_tt.mpr ⟨l, mem_cons_self l ls, h⟩ } }
-end
--/
-
 @[simp] theorem amk_nil (k : nat) : amk k [] = tt := rfl
 
 @[simp] theorem amk_singleton_pos (k : nat) (b : bool) : amk (k + 1) [b] = tt :=
@@ -187,6 +98,12 @@ theorem eval_take {k : nat} {τ : assignment V} {l : list (literal V)} :
 assume hamk i, eval_sublist (take_sublist i l) hamk 
 
 /-! # amz -/
+
+theorem amz_of_amz_cons {τ : assignment V} {l : list (literal V)} {lit : literal V} :
+  amk.eval 0 τ (lit :: l) = tt → amk.eval 0 τ l = tt :=
+begin
+  simp [amk.eval, amk], cases literal.eval τ lit; simp
+end
 
 -- The special case where k = 0 is handled
 theorem amz_eval_tt_iff_forall_eval_ff :
@@ -325,7 +242,7 @@ begin
 end
 
 theorem eval_eq_amk_of_eqod {τ₁ τ₂ : assignment V} {l : list (literal V)} :
-  ∀ (k : nat), (τ₁ ≡clause.vars l≡ τ₂) → amk.eval k τ₁ l = amk.eval k τ₂ l :=
+  ∀ (k : nat), (eqod τ₁ τ₂ (clause.vars l)) → amk.eval k τ₁ l = amk.eval k τ₂ l :=
 begin
   intros k heqod,
   induction l with l ls ih generalizing k,
