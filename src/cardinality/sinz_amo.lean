@@ -321,7 +321,7 @@ begin
   { by_cases hij' : i = j,
     { subst hij',
       have := si_to_next_si_mem hl g hi (lt_of_succ_lt (minus_two hi)),
-      have := eval_tt_iff_forall_clause_eval_tt.mp hs _ (this),
+      have := eval_tt_iff_forall_clause_eval_tt.mp hs _ this,
       simp [eval_tt_iff_exists_literal_eval_tt] at this,
       rcases this with ⟨lit, (rfl | rfl), hlit⟩,
       { simp [literal.eval, hg] at hlit, contradiction },
@@ -371,7 +371,6 @@ begin
     cases hx : literal.eval τ (l.nth_le _ this),
     { rw eval_take_tail_neg this hx at hlk,
       have ihred := ih (lt_of_succ_lt hi) hlk,
-      -- Apply signal_nec2
       have : i < l.length - 2,
       { rcases exists_eq_add_of_le hl with ⟨k, hk⟩,
         rw add_comm at hk,
