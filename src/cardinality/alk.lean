@@ -149,7 +149,7 @@ begin
       exact ih k },
     { cases k,
       { rw [amk.eval_cons_pos_zero h₁, alk.eval_cons_pos h₁, eval_zero],
-        exact bool.bnot_true },
+        exact bool.bnot_tt.symm },
       { rw [amk.eval_cons_pos h₁, alk.eval_cons_pos h₁],
         exact ih k } } }
 end

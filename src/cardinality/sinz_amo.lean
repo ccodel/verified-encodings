@@ -303,7 +303,10 @@ begin
       by_cases hiz : (0 < i),
       { simp [hiz] at hc, subst hc,
         simp [si_to_next_xi, eval_tt_iff_forall_clause_eval_tt, hiz] at this,
-        exact this },
+        rw eval_tt_iff_exists_literal_eval_tt,
+        rcases this with (hl | hl),
+        { use Neg (g.nth (i - 1)), simp [hl] },
+        { use (l.nth_le i Hi).flip, simp [hl] } },
       { simp [hiz] at hc, exfalso, exact hc } } } 
 end
 
@@ -323,9 +326,9 @@ begin
       have := si_to_next_si_mem hl g hi (lt_of_succ_lt (minus_two hi)),
       have := eval_tt_iff_forall_clause_eval_tt.mp hs _ this,
       simp [eval_tt_iff_exists_literal_eval_tt] at this,
-      rcases this with ⟨lit, (rfl | rfl), hlit⟩,
-      { simp [literal.eval, hg] at hlit, contradiction },
-      { rw literal.eval at hlit, exact hlit } },
+      rcases this with (hl | hl),
+      { rw [literal.eval, hg] at hl, contradiction },
+      { rw literal.eval at hl, exact hl } },
     { have := lt_of_le_of_ne (le_of_lt_succ hij) hij',
       have ihred := ih this (lt_of_succ_lt hj),
       have hjl : j < length l,
@@ -341,9 +344,9 @@ begin
       have := si_to_next_si_mem hl g this hjl,
       have := eval_tt_iff_forall_clause_eval_tt.mp hs _ this,
       simp [eval_tt_iff_exists_literal_eval_tt] at this,
-      rcases this with ⟨list, (rfl | rfl), hlit⟩,
-      { simp [literal.eval, ihred] at hlit, contradiction },
-      { rw literal.eval at hlit, exact hlit } } }
+      rcases this with (hl | hl),
+      { rw [literal.eval, ihred] at hl, contradiction },
+      { rw literal.eval at hl, exact hl } } }
 end
 
 theorem signal_nec {τ} {l : list (literal V)} (hl : length l ≥ 2) {g : gensym V}
@@ -364,9 +367,9 @@ begin
       simp [sinz_amo, not_lt.mpr hl, eval_tt_iff_forall_clause_eval_tt, xi_to_si] at hs,
       have := hs _ (or.inl this),
       simp [eval_tt_iff_exists_literal_eval_tt] at this,
-      rcases this with ⟨lit, (rfl | rfl), hlit⟩,
-      { rw [eval_flip, ← hlk] at hlit, contradiction },
-      { rw literal.eval at hlit, exact hlit } } },
+      rcases this with (hl | hl),
+      { rw [eval_flip, ← hlk] at hl, contradiction },
+      { rw literal.eval at hl, exact hl } } },
   { have : i + 1 < length l, from lt_of_lt_pred hi,
     cases hx : literal.eval τ (l.nth_le _ this),
     { rw eval_take_tail_neg this hx at hlk,
@@ -386,9 +389,9 @@ begin
     { have hmem := xi_to_si_mem hl g hi this,
       have := eval_tt_iff_forall_clause_eval_tt.mp hs _ hmem,
       simp [eval_tt_iff_exists_literal_eval_tt] at this,
-      rcases this with ⟨list, (rfl | rfl), hlit⟩,
-      { rw [eval_flip, hx] at hlit, contradiction },
-      { rw literal.eval at hlit, exact hlit } } }
+      rcases this with (hl | hl),
+      { rw [eval_flip, hx] at hl, contradiction },
+      { rw literal.eval at hl, exact hl } } }
 end
 
 theorem signal_nec3 {τ} {l : list (literal V)} (hl : length l ≥ 2) {g : gensym V}
@@ -427,9 +430,9 @@ begin
       exact lt_of_lt_of_le hsub (le_of_lt_succ this) },
     have := signal_nec2 hl hi₂ hs' hg ⟨hsub, this⟩,
     simp [eval_tt_iff_exists_literal_eval_tt] at hc,
-    rcases hc with ⟨lit, (rfl | rfl), he⟩,
-    { simp [literal.eval, this] at he, contradiction },
-    { simp [eval_flip] at he, exact he } }
+    rcases hc with (hl | hl),
+    { rw [literal.eval, this] at hl, contradiction },
+    { simp [eval_flip] at hl, exact hl } }
 end
 
 theorem sinz_reverse {τ} {l : list (literal V)} {g : gensym V}

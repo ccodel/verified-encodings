@@ -253,7 +253,7 @@ theorem direct_amo_encodes_amo : ∀ (l : list (literal V)),
       cases h : (lit₁.eval τ),
       { use [lit₁.flip, mem_cons_self _ _],
         rw eval_flip,
-        simp only [h, bool.bnot_false] },
+        simp only [h, bool.bnot_ff] },
       { have : lit₂.flip ∈ [lit₁.flip, lit₂.flip], simp,
         use [lit₂.flip, this],
         exact eval_flip_of_eval (hamk (distinct_iff_mem.mpr hc) h) } },
@@ -278,5 +278,102 @@ theorem direct_amo_encodes_amo : ∀ (l : list (literal V)),
       rw ← eval_eq_of_eqod_of_var_mem hsigma this at h₂,
       exact h₂ } }
 end
+
+/-
+
+lemma map_vars (lit : literal V) (l : list (literal V)) : l ≠ [] →
+  cnf.vars (l.map (λ m, [lit.flip, m.flip])) = clause.vars (lit :: l) :=
+begin
+  induction l with l ls ih,
+  { simp },
+  { cases ls with l₂ ls,
+    { simp [clause.vars, flip_var_eq] },
+    { simp at ih,
+      simp [cnf.vars, clause.vars, flip_var_eq, ih],
+      rw ← finset.union_assoc {l.var} {lit.var} _,
+      rw finset.union_comm {l.var} {lit.var},
+      rw finset.union_assoc {lit.var} {l.var} _,
+      rw ← finset.union_assoc {lit.var} {lit.var} _,
+      simp } }
+end
+
+theorem vars_direct_amo (l : list (literal V)) : 
+  length l ≥ 2 → (direct_amo l).vars = clause.vars l :=
+begin
+  sorry
+  intro hl,
+  induction l with l ls ih,
+  { simp [cnf.vars_singleton, direct_amo] },
+  { cases ls with l₂ ls,
+    { simp at hl, exfalso, linarith },
+    { rw finset.ext_iff, intro v, split,
+      { intro hv,
+        simp [direct_amo, cnf.vars, cnf.vars_append] at hv,
+        rcases hv with (hv | hv | hv),
+        { simp [clause.vars] at hv,
+          rcases hv with (hv | hv);
+          { rw flip_var_eq at hv,
+            simp [clause.vars, hv] } },
+        { cases ls with l₃ ls,
+          { simp at hv, contradiction },
+          { rw map_vars at hv,
+            simp [clause.vars] at hv |-,
+            rcases hv with (hv | hv | hv),
+            { exact or.inl hv },
+            { right, right, exact or.inl hv },
+            { right, right, exact or.inr hv },
+            simp } },
+        { cases ls with l₃ ls,
+          { simp at hv, contradiction },
+          rcases hv with (hv | hv),
+          { rw map_vars at hv,
+            simp [clause.vars] at hv |-,
+            rcases hv with (hv | hv | hv),
+            { right, exact or.inl hv },
+            { right, right, exact or.inl hv },
+            { right, right, exact or.inr hv }, 
+            simp },
+          { have : 2 ≤ ls.length + 1 + 1, sorry,
+            simp [this] at ih,
+            simp [clause.vars],
+            sorry } } },
+      {
+
+      } },
+    { intro hv,
+      simp [direct_amo, cnf.vars_append],
+      simp [clause.vars] at hv,
+      rcases hv with (rfl | hv),
+      { left,
+        cases ls with l₂ ls,
+        {
+          simp,
+        },
+        rw map_vars,
+        simp [clause.vars], },
+      { right, rw ih, exact hv } } }
+end
+
+theorem direct_amo_eq_amo' {τ : assignment nat} {l : list (literal nat)} :
+  (direct_amo l).eval τ = tt ↔ amk.eval 1 τ l = tt :=
+begin
+  split,
+  {
+
+  }
+end
+
+theorem direct_amo_eq_amo {τ : assignment nat} {l : list (literal nat)} : 
+  (direct_amo l).eval τ = amk.eval 1 τ l :=
+begin
+  cases hd : (direct_amo l).eval τ,
+  { by_contradiction,
+    have := ne.symm h,
+    simp at this,
+    rw direct_amo_eq_amo'.mpr this at hd,
+    contradiction },
+  { exact (direct_amo_eq_amo'.mp hd).symm }
+end
+-/
 
 end direct_amo

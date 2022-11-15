@@ -1,5 +1,5 @@
 /-
-This file contains the development of the Tseitin encoding for XOR.
+This file contains the Tseitin encoding for XOR.
 Both the pooled and linear encodigns are included here.
 
 Authors: Cayden Codel, Jeremy Avidgad, Marijn Heule
@@ -158,7 +158,7 @@ begin
   { use τ, rw [tseitin_base_case hk hp hl, eval_direct_xor_eq_eval_Xor], simp [he] },
   {
     rw [eval_eq_bodd_count_tt,
-      ← (take_append_drop (k - 1) l), count_tt_append, bodd_add] at he,
+      ← (take_append_drop (k - 1) l), clause.count_tt_append, bodd_add] at he,
 
     have hnotmem := set.disjoint_left.mp hdis (g.fresh_mem_stock),
     have h₁ := drop_len_lt (Pos g.fresh.1) hk (not_le.mp hl),
@@ -177,7 +177,7 @@ begin
     { rw [hc, bool.bxor_ff_left] at he,
       rcases exists_eqod_and_eq_of_not_mem τ ff hnotmem with ⟨γ, heqod, hg⟩,
       have : bodd (clause.count_tt γ (Pos g.fresh.1 :: drop (k - 1) l)) = tt,
-      { simp only [count_tt_cons, literal.eval, hg, cond,
+      { simp only [clause.count_tt_cons, literal.eval, hg, cond,
           ← count_tt_eq_of_eqod (eqod_subset hdropvars heqod), he] },
       rw [← eval_eq_bodd_count_tt, eval_eq_of_perm (hp (Pos g.fresh.1 :: drop (k - 1) l))] at this,
 
@@ -209,7 +209,7 @@ begin
       split,
       { split,
         { simp [eval_direct_xor_eq_eval_Xor, eval_eq_bodd_count_tt, 
-            count_tt_append, bodd_add, literal.eval, hg],
+            clause.count_tt_append, bodd_add, literal.eval, hg],
           have : g.fresh.1 ∈ clause.vars (Pos g.fresh.1 :: (l.drop (k - 1))),
           { exact mem_vars_cons_self _ _ },
           rw vars_perm (hp (Pos g.fresh.1 :: drop (k - 1) l)) at this,
@@ -217,14 +217,14 @@ begin
             ← (hg₂ g.fresh.1 this), hg,
             count_tt_eq_of_eqod (eqod_subset htakevars heqod₂),
             ← count_tt_eq_of_eqod (eqod_subset htakevars heqod), hc] },
-        { exact he₂ ▸ eval_eq_cnf_of_eqod (ite_eqod _ _ _) } },
+        { exact he₂ ▸ eval_eq_of_eqod (ite_eqod _ _ _) } },
       { exact eqod.trans heqod (heqod₂.symm) } },
     { simp only [hc, bnot_eq_true_eq_eq_ff, tt_bxor] at he,
         rcases exists_eqod_and_eq_of_not_mem τ tt hnotmem with ⟨γ, heqod, hg⟩,
         have : bodd (clause.count_tt γ (Pos g.fresh.1 :: drop (k - 1) l)) = tt,
-        { simp only [count_tt_cons, literal.eval, hg, cond, 
-            ← count_tt_eq_of_eqod (eqod_subset hdropvars heqod), he, bodd_succ, 
-            bodd_add, bodd_zero, bool.bnot_false, bool.bxor_ff_right], },
+        { simp only [clause.count_tt_cons, literal.eval, hg, cond, 
+            ← count_tt_eq_of_eqod (eqod_subset hdropvars heqod), he, bodd_succ,
+            bodd_add, bodd_zero, bool.bnot_ff, bxor_tt_left], },
         rw [← eval_eq_bodd_count_tt, eval_eq_of_perm (hp (Pos g.fresh.1 :: drop (k - 1) l))] at this,
 
         -- Apply the induction hypothesis
@@ -255,7 +255,7 @@ begin
         split,
         { split,
           { simp [eval_direct_xor_eq_eval_Xor, eval_eq_bodd_count_tt, 
-              count_tt_append, bodd_add, literal.eval, hg],
+              clause.count_tt_append, bodd_add, literal.eval, hg],
             have : g.fresh.1 ∈ clause.vars (Pos g.fresh.1 :: (l.drop (k - 1))),
             { exact mem_vars_cons_self _ _ },
             rw vars_perm (hp (Pos g.fresh.1 :: drop (k - 1) l)) at this,
@@ -263,7 +263,7 @@ begin
               ← (hg₂ g.fresh.1 this), hg,
               count_tt_eq_of_eqod (eqod_subset htakevars heqod₂),
               ← count_tt_eq_of_eqod (eqod_subset htakevars heqod), hc] },
-          { exact he₂ ▸ eval_eq_cnf_of_eqod (ite_eqod _ _ _) } },
+          { exact he₂ ▸ eval_eq_of_eqod (ite_eqod _ _ _) } },
         { exact eqod.trans heqod heqod₂.symm } } } 
 end
 
@@ -284,15 +284,15 @@ begin
     have ihred := ih _ h₁ h₂ hrec,
     rw eval_direct_xor_eq_eval_Xor at hdir,
     rw eval_eq_bodd_count_tt at ihred hdir |-,
-    rw ← count_tt_perm (hp (Pos g.fresh.1 :: drop (k - 1) l)) at ihred,
+    rw ← clause.count_tt_perm (hp (Pos g.fresh.1 :: drop (k - 1) l)) at ihred,
     have := congr_arg ((clause.count_tt τ)) (take_append_drop (k - 1) l).symm,
     have := congr_arg bodd this,
     cases hnew : (τ g.fresh.1),
-    { simp [count_tt_cons, count_tt_append, hnew, literal.eval] at ihred hdir,
-      rw [count_tt_append, bodd_add, hdir, ihred, ff_bxor] at this,
+    { simp [clause.count_tt_cons, clause.count_tt_append, hnew, literal.eval] at ihred hdir,
+      rw [clause.count_tt_append, bodd_add, hdir, ihred, ff_bxor] at this,
       exact this },
-    { simp [count_tt_cons, count_tt_append, hnew, literal.eval] at ihred hdir,
-      rw [count_tt_append, bodd_add, hdir, ihred, bxor_ff] at this,
+    { simp [clause.count_tt_cons, clause.count_tt_append, hnew, literal.eval] at ihred hdir,
+      rw [clause.count_tt_append, bodd_add, hdir, ihred, bxor_ff] at this,
       exact this } }
 end
 
@@ -303,7 +303,7 @@ begin
   split,
   { exact tseitin_forward hk hp hdis },
   { rintros ⟨σ, he, heqod⟩,
-    rw [← Xor.eval, eval_eq_Xor_of_eqod heqod],
+    rw [← Xor.eval, Xor.eval_eq_of_eqod heqod],
     exact tseitin_reverse hk hp hdis he }
 end
 

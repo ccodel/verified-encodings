@@ -1,33 +1,26 @@
 /-
-This file defines the boolean XOR function on n variables.
+This file defines the boolean XOR constraint on n variables.
 
 Authors: Cayden Codel, Marijn Heule, Jeremy Avigad
 Carnegie Mellon University
 -/
 
 import basic
-import cnf.literal
-import cnf.assignment
-import cnf.clause
-import cnf.cnf
-import cnf.explode
-
-import data.list.basic
-import data.finset.basic
+import cnf.literal cnf.assignment cnf.clause cnf.cnf cnf.explode
+import data.list.basic data.finset.basic
 
 universe u
 
 -- Represents the type of the variable stored in the literal
-variables {V : Type u} [decidable_eq V] [inhabited V]
+variables {V : Type u}
 
-/- An n-variable XOR function is a map from a list of bools to an output bool -/
+/- An n-variable XOR constraint is a map from a list of bools to an output bool -/
 def Xor (l : list bool) : bool := l.foldr bxor ff
 
 namespace Xor
 
-open nat
-open list
 open clause
+open nat list
 
 /-! # eval -/
 section eval
@@ -73,19 +66,9 @@ begin
   { exact eq.trans IH₁ IH₂ }
 end
 
-end eval
+open assignment
 
-end Xor
-
-/-! # eqod for Xor -/
-
-namespace assignment
-
-open list
-open clause
-open Xor
-
-theorem eval_eq_Xor_of_eqod {τ₁ τ₂ : assignment V} {l : list (literal V)} :
+theorem eval_eq_of_eqod [decidable_eq V] {τ₁ τ₂ : assignment V} {l : list (literal V)} :
   (eqod τ₁ τ₂ (clause.vars l)) → Xor.eval τ₁ l = Xor.eval τ₂ l :=
 begin
   induction l with l ls ih,
@@ -96,4 +79,6 @@ begin
     rw ih (eqod_subset (vars_subset_of_vars_cons l ls) h) }
 end
 
-end assignment
+end eval
+
+end Xor

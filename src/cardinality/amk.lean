@@ -48,10 +48,8 @@ begin
     { intro _, simp [amk.eval, amk, h] } },
   { split,
     { intro hamk,
-      simp [amk.eval, amk] at hamk,
-      have := not_mem_of_count_eq_zero hamk,
-      simp [h] at this,
-      exfalso, exact this },
+      simp [amk.eval, amk, h] at hamk,
+      contradiction },
     { intro h, contradiction } }
 end
 
@@ -110,11 +108,7 @@ theorem amz_eval_tt_iff_forall_eval_ff :
   amk.eval 0 τ l = tt ↔ (∀ (lit : literal V), lit ∈ l → lit.eval τ = ff) :=
 begin
   split,
-  { simp [amk.eval, amk],
-    intro hc,
-    have := not_mem_of_count_eq_zero hc,
-    simp at this,
-    exact this },
+  { simp [amk.eval, amk] },
   { intro h,
     rw [amk.eval, amk, to_bool_iff, le_zero_iff],
     apply count_eq_zero_of_not_mem,

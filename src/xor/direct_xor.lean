@@ -1,6 +1,6 @@
 /-
 This file defines and proves the correctness of the direct (or naive)
-encoding of the n-variable boolean XOR function.
+encoding of the n-variable boolean XOR constraint.
 
 Authors: Cayden Codel, Jeremy Avigad, Marijn Heule
 Carnegie Mellon University
@@ -109,9 +109,11 @@ end
 theorem even_flips_iff_mem_direct_xor_of_map_var_eq : map var c = map var l → 
   (bodd (c.count_flips l) = ff ↔ c ∈ direct_xor l) :=
 begin
-  intro hc, split,
-  { cases l with l ls,
-    { revert hc, simp },
+  intro hc,
+  cases l with l ls,
+  { rw [map_nil, map_eq_nil] at hc, subst hc,
+    simp only [count_flips_self, bodd_zero, eq_self_iff_true, direct_xor_nil, mem_singleton] }, 
+  { split,
     { simp only [direct_xor, map_cons, bool.cond_to_bool, mem_map],
       intro hf,
       rcases exists_cons_of_map_cons hc with ⟨x, xs, rfl, hx, hxs⟩,
@@ -119,22 +121,19 @@ begin
       { exact map_var_eq_iff_mem_explode.mp hxs },
       { cases h : (bodd (clause.count_flips xs ls)),
         { rcases var_eq_iff_eq_or_flip_eq.mp hx with rfl | hx,
-          { simp only [if_true, coe_sort_tt, bool.bnot_false] },
+          { simp only [bool.bnot_ff, coe_sort_tt, if_true], },
           { simp [clause.count_flips, hx] at hf,
             rw h at hf, contradiction } },
         { rcases var_eq_iff_eq_or_flip_eq.mp hx with hx | rfl,
           { simp [clause.count_flips, hx] at hf,
             rw h at hf, contradiction },
-          { simp only [flip_flip, if_false, bool.bnot_true, coe_sort_ff]} } } } },
-  { cases l with l ls,
-    { simp },
-    { simp only [direct_xor, bool.cond_to_bool, mem_map],
-      rintro ⟨a, ha, hf⟩,
-      rcases exists_cons_of_map_cons hc with ⟨x, xs, rfl, hx, hxs⟩,
-      cases h : (nat.bodd (a.count_flips ls));
-      { simp only [h, if_true, eq_self_iff_true, if_false] at hf,
-        simp [← hf, clause.count_flips, literal.is_neg, 
-          bool.to_nat, h, flip_flip _, flip_ne] } } }      
+          { simp only [flip_flip, bool.bnot_tt, coe_sort_ff, if_false]} } } },
+    { { simp only [direct_xor, bool.cond_to_bool, mem_map],
+        rintro ⟨a, ha, hf⟩,
+        rcases exists_cons_of_map_cons hc with ⟨x, xs, rfl, hx, hxs⟩,
+        cases h : (nat.bodd (a.count_flips ls));
+        { simp only [h, if_true, eq_self_iff_true, if_false] at hf,
+          simp [← hf, clause.count_flips, literal.is_neg, bool.to_nat, h, flip_flip _, flip_ne] } } } }
 end
 
 theorem odd_flips_iff_not_mem_direct_xor_of_map_var_eq : map var c = map var l → 
@@ -196,8 +195,7 @@ begin
     rw eval_direct_xor_eq_eval_Xor l τ,
     exact ⟨h, assignment.eqod.refl τ _⟩ },
   { rintros ⟨σ, he, hs⟩,
-    rw [← Xor.eval, assignment.eval_eq_Xor_of_eqod hs, 
-      ← eval_direct_xor_eq_eval_Xor l σ],
+    rw [← Xor.eval, eval_eq_of_eqod hs, ← eval_direct_xor_eq_eval_Xor l σ],
     exact he }
 end
 

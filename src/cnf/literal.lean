@@ -162,7 +162,6 @@ literal.eval τ l = tt
 protected def is_false (τ : assignment V) (l : literal V) : Prop :=
 literal.eval τ l = ff
 
--- is_pos, etc. are decidable
 instance : decidable_pred (literal.is_pos : literal V → Prop)
 | (Pos v) := decidable.true
 | (Neg v) := decidable.false
@@ -172,12 +171,10 @@ instance : decidable_pred (literal.is_neg : literal V → Prop)
 | (Neg v) := decidable.true
 
 instance (τ : assignment V) : decidable_pred (literal.is_true τ) :=
-λ l, by cases h : literal.eval τ l;
-  { unfold literal.is_true, rw h, exact eq.decidable _ _ }
+λ l, by cases h : l.eval τ; { unfold literal.is_true, rw h, exact eq.decidable _ _ }
 
 instance (τ : assignment V) : decidable_pred (literal.is_false τ) :=
-λ l, by cases h : literal.eval τ l;
-  { unfold literal.is_false, rw h, exact eq.decidable _ _ }
+λ l, by cases h : l.eval τ; { unfold literal.is_false, rw h, exact eq.decidable _ _ }
 
 -- A literal can never be both positive and negative
 theorem is_pos_ne_is_neg (l : literal V) :

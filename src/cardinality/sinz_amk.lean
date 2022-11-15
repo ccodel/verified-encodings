@@ -464,9 +464,9 @@ begin
       have := signal_row_prop_mem hk hl g hr hc,
       have := eval_tt_iff_forall_clause_eval_tt.mp hs _ this,
       simp [eval_tt_iff_exists_literal_eval_tt] at this,
-      rcases this with ⟨lit, (rfl | rfl), hlit⟩,
-      { simp [literal.eval, ht] at hlit, contradiction },
-      { rw literal.eval at hlit, exact hlit } },
+      rcases this with (hl | hl),
+      { rw [literal.eval, ht] at hl, contradiction },
+      { rw literal.eval at hl, exact hl } },
     { have := lt_of_le_of_ne (le_of_lt_succ hgt) hcc,
       have ihred := ih this (lt_of_succ_lt hcl),
       have : c₂ < l.length - 1,
@@ -476,9 +476,9 @@ begin
       have := signal_row_prop_mem hk hl g hr this,
       have := eval_tt_iff_forall_clause_eval_tt.mp hs _ this,
       simp [eval_tt_iff_exists_literal_eval_tt] at this,
-      rcases this with ⟨lit, (rfl | rfl), hlit⟩,
-      { simp [literal.eval, ihred] at hlit, contradiction },
-      { rw [literal.eval] at hlit, exact hlit } } }
+      rcases this with (hl | hl),
+      { simp [literal.eval, ihred] at hl, contradiction },
+      { rw [literal.eval] at hl, exact hl } } }
 end
 
 theorem fp_eval_tt {τ} {k r c : nat} {g : gensym V} {l : list (literal V)}
@@ -500,9 +500,9 @@ begin
         rw eval_tt_iff_forall_clause_eval_tt at hs,
         have := hs _ (first_prop_mem hk hl g hc),
         simp [eval_tt_iff_exists_literal_eval_tt] at this,
-        rcases this with ⟨lit, (rfl | rfl), hlit₂⟩,
-        { rw [eval_flip, hlit] at hlit₂, contradiction },
-        { rw literal.eval at hlit₂, exact hlit₂ } } } },
+        rcases this with (hl | hl),
+        { rw [eval_flip, hlit] at hl, contradiction },
+        { rw literal.eval at hl, exact hl } } } },
   { have hc' : c < length l - 1,
     { rcases exists_eq_add_of_lt (lt_trans hk hl) with ⟨m, hm⟩,
       simp [hm] at hc |-,
@@ -516,16 +516,16 @@ begin
       cases r,
       { have := hs _ (first_prop_mem hk hl g hc),
         simp [eval_tt_iff_exists_literal_eval_tt] at this,
-        rcases this with ⟨lit, (rfl | rfl), hlit⟩,
-        { simp [eval_flip, hx] at hlit, contradiction },
-        { rw literal.eval at hlit, exact hlit } },
+        rcases this with (hl | hl),
+        { simp [eval_flip, hx] at hl, contradiction },
+        { rw literal.eval at hl, exact hl } },
       { have ihred := ih (lt_of_succ_lt hc) (lt_of_succ_lt hr) hlk,
         have := hs _ (inc_prop_mem hk hl g (succ_lt_succ_iff.mp hr) hc' hc),
         simp [eval_tt_iff_exists_literal_eval_tt] at this,
-        rcases this with ⟨lit, (rfl | rfl | rfl), hlit⟩,
-        { rw [eval_flip, hx] at hlit, contradiction },
-        { rw [literal.eval, ihred] at hlit, contradiction },
-        { rw literal.eval at hlit, exact hlit } } } }
+        rcases this with (hl | hl | hl),
+        { rw [eval_flip, hx] at hl, contradiction },
+        { rw [literal.eval, ihred] at hl, contradiction },
+        { rw literal.eval at hl, exact hl } } } }
 end
 
 theorem sinz_reverse {k : nat} (hk : k > 1) {τ} {l : list (literal V)} {g : gensym V}
@@ -550,7 +550,7 @@ begin
     have := hmt this,
     simp [hl''] at this,
     have hamkalk := amk_eval_eq_alk_succ_eval k τ l,
-    rw [this, bool.bnot_false] at hamkalk,
+    rw [this, bool.bnot_ff] at hamkalk,
     exact hamkalk },
   { exact eval_tt_of_ge_length (not_lt.mp hl) _ }
 end

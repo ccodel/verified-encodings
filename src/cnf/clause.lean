@@ -108,9 +108,7 @@ theorem eval_ff_iff_forall_literal_eval_ff {τ : assignment V} {c : clause V} :
 begin
   induction c with l ls ih,
   { simp only [eval_nil, eq_self_iff_true, not_mem_nil, is_empty.forall_iff, implies_true_iff] },
-  { simp only [eval_cons, bor_eq_false_eq_eq_ff_and_eq_ff, mem_cons_iff, 
-      forall_eq_or_imp, and.congr_right_iff],
-    intro _, exact ih }
+  { simp only [ih, eval_cons, bor_eq_false_eq_eq_ff_and_eq_ff, mem_cons_iff, forall_eq_or_imp] }
 end
 
 theorem eval_tautology {c : clause V} {l : literal V} : 
@@ -396,9 +394,9 @@ by simp [count_pos, countp_pos]
 theorem pos_count_neg_iff_exists_neg : c.count_neg > 0 ↔ ∃ l, l ∈ c ∧ literal.is_neg l :=
 by simp [count_neg, countp_pos]
 
-theorem count_tt_perm : c₁ ~ c₂ → c₁.count_tt τ = c₂.count_tt τ :=
+theorem count_tt_perm : c₁ ~ c₂ → ∀ (τ : assignment V), c₁.count_tt τ = c₂.count_tt τ :=
 begin
-  intro hp,
+  intros hp τ,
   induction hp with x l₂ l₂' p IH  x y l₂  l₂ m₂ r₂ p₁ p₂ IH₁ IH₂,
   { refl },
   { simp [count_tt_cons, IH] },
@@ -550,7 +548,7 @@ end
 theorem vars_perm {c₁ c₂ : clause V} : c₁ ~ c₂ → c₁.vars = c₂.vars :=
 begin
   intro hp,
-  induction hp with x l₂ l₂' p IH  x y l₂  l₂ m₂ r₂ p₁ p₂ IH₁ IH₂,
+  induction hp with _ _ _ _ IH  x y _  _ _ _ _ _ IH₁ IH₂,
   { refl },
   { unfold clause.vars, rw IH },
   { unfold clause.vars,
