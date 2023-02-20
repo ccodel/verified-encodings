@@ -13,8 +13,7 @@ import tactic
 
 namespace distinct
 
-open list
-open nat
+open list nat
 
 def distinct {α : Type*} (a₁ a₂ : α) (l : list α) :=
   ∃ (i j : nat) (Hi : i < l.length) (Hj : j < l.length), 
@@ -196,5 +195,20 @@ theorem countp_ge_two_of_distinct_of_pos {α : Type*} {a₁ a₂ : α}
       have ih := countp_ge_two_of_distinct_of_pos this,
       exact le_trans ih (sublist.countp_le p (sublist_cons a (b :: bs))) } }
 end
+
+theorem distinct_of_mem_take_of_mem_drop {α : Type*} {a₁ a₂ : α} {l : list α} :
+  ∀ {i : nat}, a₁ ∈ l.take i → a₂ ∈ l.drop i → distinct a₁ a₂ l :=
+begin
+  intros i htake hdrop,
+  induction i with i ih generalizing l,
+  { rw take at htake, exact absurd htake (not_mem_nil _) },
+  { cases l with x xs,
+    { rw take_nil at htake, exact absurd htake (not_mem_nil _) },
+    { rw take at htake, rw drop at hdrop,
+      rcases eq_or_mem_of_mem_cons htake with (rfl | h),
+      { exact distinct_cons_of_mem a₁ (mem_of_mem_drop hdrop) },
+      { exact distinct_cons_of_distinct _ (ih h hdrop) } } }
+end
+
 
 end distinct

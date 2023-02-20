@@ -18,8 +18,6 @@ open function
 open prod
 open list
 
-universe u
-
 variables {α : Type*}-- [decidable_eq α] [inhabited α]
 
 /- Essentially, a gensym object only tracks a position along the natural number
@@ -99,7 +97,7 @@ theorem nfresh_f_injective (n : nat) :
   injective (nfresh g n).2.f := (nfresh g n).2.f_inj
 
 theorem nfresh_one_eq_fresh : 
-  prod.map (λ a, [a]) id (fresh g) = nfresh g 1 :=
+  nfresh g 1 = prod.map (λ a, [a]) id (fresh g) :=
 by simp only [fresh, nfresh, map_mk, eq_self_iff_true]
 
 theorem nfresh_succ_eq_nfresh_fresh (n : nat) :
@@ -118,6 +116,9 @@ by simp only [nfresh_succ_eq_nfresh_fresh]
 theorem nfresh_succ_gensym_eq_nfresh_fresh_gensym (n : nat) :
   (nfresh g (n + 1)).2 = (nfresh (fresh g).2 n).2 :=
 by simp [nfresh_succ_eq_nfresh_fresh, nfresh, fresh]
+
+--theorem nfresh_succ_eq_fresh_nfresh (n : nat) :
+--  nfresh g (n + 1) = ⟨(nfresh g n).1 ++ [(nfresh g n).2.fresh.1], (nfresh g n).2.fresh.2⟩ :=
 
 /- nfresh can be split across two sets of calls -/
 -- TODO later include both list and gensym objets in theorem
@@ -234,6 +235,26 @@ begin
   use [g.fresh.1, fresh_mem_stock g, fresh_not_mem_fresh_stock g]
 end
 
+theorem nfresh_mem_stock {g : gensym α} {n : nat} : ∀ ⦃v⦄, v ∈ (g.nfresh n).1 → v ∈ g.stock :=
+begin
+  induction n with n ih generalizing g,
+  { intros v hv, simp [nfresh] at hv, contradiction },
+  { intros v hv,
+    rw [nfresh_succ_eq_nfresh_fresh, mem_cons_iff] at hv,
+    rcases hv with (rfl | hv),
+    { exact fresh_mem_stock g },
+    { exact fresh_stock_subset _ (ih hv) } }
+end
+
+theorem nfresh_stock_subset : ∀ (n : nat), (g.nfresh n).2.stock ⊆ g.stock :=
+begin
+  intro n,
+  induction n with n ih,
+  { rw nfresh_zero },
+  { rw nfresh_succ_eq_nfresh_fresh,
+    exact subset_trans (fresh_stock_subset _) ih }
+end
+
 -- # nth
 
 def nth (g : gensym α) (n : nat) : α := g.f (n + g.offset)
@@ -247,12 +268,47 @@ assume h, (add_left_inj g.offset).mp (g.f_inj.eq_iff.mp h)
 theorem nth_zero_eq_fresh : ∀ (g : gensym α), g.nth 0 = g.fresh.1 :=
 by { intro g, rw [nth, fresh, zero_add] }
 
--- TODO figure out what mem stock really means
 theorem nth_mem_stock : ∀ (g : gensym α) (n : nat), g.nth n ∈ g.stock :=
 begin
   intros g n,
   rw [nth, stock],
   simp, use n, rw add_comm,
+end
+
+theorem nth_not_mem_nfresh_stock {i : nat} : ∀ ⦃a : α⦄, 
+  a ∈ (g.nfresh i).1 → a ∉ (g.nfresh i).2.stock :=
+begin
+  induction i with i ih generalizing g;
+  intros a ha,
+  { simp at ha, contradiction },
+  { rw nfresh_succ_eq_nfresh_fresh at ha,
+    unfold prod.fst at ha,
+    rcases eq_or_mem_of_mem_cons ha with (rfl | hmem),
+    { rw nfresh_succ_eq_nfresh_fresh,
+      apply not_mem_subset (fresh_not_mem_fresh_stock g),
+      unfold prod.snd,
+      rw ← nfresh_succ_gensym_eq_fresh_nfresh_gensym g,
+      rw nfresh_succ_gensym_eq_nfresh_fresh_gensym g,
+      exact nfresh_stock_subset _ _ },
+    { exact ih _ hmem } }
+end
+
+theorem nth_mem_nfresh_of_lt {i j : nat} : i < j → g.nth i ∈ (g.nfresh j).1 :=
+begin
+  induction j with j ih generalizing i g,
+  { simp },
+  { intro hlt,
+    rw nfresh_succ_eq_nfresh_fresh,
+    unfold prod.fst,
+    cases i,
+    { unfold fresh,
+      unfold nth,
+      rw [zero_add],
+      exact mem_cons_self _ _ },
+    { have : g.nth i.succ = g.fresh.2.nth i,
+      { simp [nth, fresh, add_comm, add_assoc, succ_eq_add_one] },
+      rw this,
+      exact mem_cons_of_mem _ (ih _ (succ_lt_succ_iff.mp hlt)) } }
 end
 
 -- Disjointness

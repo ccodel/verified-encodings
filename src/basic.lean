@@ -7,6 +7,7 @@ Carnegie Mellon University
 
 import data.bool.basic
 import data.list.basic
+import data.fin.basic
 import data.list.indexes
 import init.data.nat.lemmas
 import data.finset.basic
@@ -18,8 +19,7 @@ open list
 open function
 open nat
 
-universes u v
-variables {α : Type u} {β : Type v}
+variables {α β γ : Type*}
 
 /-! # Boolean logic -/
 
@@ -30,6 +30,9 @@ assume h₁ h₂, by { rw [h₁, h₂], intro h, contradiction }
 
 theorem bool_symm : ∀ (a b : bool), a = b ↔ b = a :=
 by simp only [bool.forall_bool, iff_self, and_self]
+
+theorem prod.ext_self {α β : Type*} (p : α × β) : p = ⟨p.1, p.2⟩ :=
+prod.ext rfl rfl
 
 /- bxor -/
 
@@ -70,6 +73,14 @@ by { cases b, { intros h₁ h₂, exact absurd h₂.symm h₁ }, { tautology } }
 theorem ff_of_ne_of_cond_eq_second [decidable_eq α] {c d : α} {b : bool} :
   c ≠ d → cond b c d = d → b = ff :=
 by { cases b, { tautology }, { intros, contradiction }}
+
+/-! # Set -/
+
+theorem not_mem_subset {a : α} {s₁ s₂ : set α} : a ∉ s₂ → s₁ ⊆ s₂ → a ∉ s₁ :=
+begin
+  intros ha hs,
+  exact mt (@hs a) ha,
+end
 
 /-! # List operations -/
 
@@ -119,6 +130,40 @@ begin
   have := nat.sub_add_cancel hc,
   use this.symm ▸ Hn,
   simp [this]
+end
+
+theorem nth_le_mem_take_of_lt {α : Type*} [inhabited α] {l : list α} {i j : nat} (Hi : i < length l) :
+  i < j → l.nth_le i Hi ∈ l.take j :=
+begin
+  induction l with a as ih generalizing i j,
+  { simp at Hi, contradiction },
+  { intro hlt,
+    cases i,
+    { cases j,
+      { exact absurd hlt (nat.not_lt_zero 0) },
+      { rw [nth_le_zero, head, take], exact mem_cons_self _ _ } },
+    { cases j,
+      { exact absurd hlt (nat.not_lt_zero i.succ) },
+      { rw [nth_le, take],
+        rw length at Hi,
+        exact mem_cons_of_mem _ (ih (succ_lt_succ_iff.mp Hi) (succ_lt_succ_iff.mp hlt)) } } }
+end
+
+theorem nth_le_mem_drop_of_ge {α : Type*} [inhabited α] {l : list α} {i j : nat} (Hi : i < length l) :
+  i ≥ j → l.nth_le i Hi ∈ l.drop j :=
+begin
+  induction l with a as ih generalizing i j,
+  { simp at Hi, contradiction },
+  { intro hge, 
+    cases i,
+    { cases j,
+      { rw [nth_le, drop], exact mem_cons_self _ _ },
+      { simp at hge, contradiction } },
+    { cases j,
+      { rw drop, exact nth_le_mem _ _ _ },
+      { rw [nth_le, drop],
+        rw length at Hi,
+        exact ih (succ_lt_succ_iff.mp Hi) (succ_le_succ_iff.mp hge) } } }
 end
 
 theorem take_one_of_ne_nil {α : Type*} [inhabited α] {l : list α} : 
@@ -346,6 +391,12 @@ assume h₁ h₂, ge_antisymm (succ_le_iff.mpr h₁) h₂
 theorem add_gt_one_of_gt_zero_of_gt_zero {n m : nat} : n > 0 → m > 0 → n + m > 1 :=
 assume h₁ h₂, succ_le_iff.mp (add_le_add (succ_le_iff.mpr h₁) (succ_le_iff.mpr h₂))
 
+theorem lt_min_left {a b c : nat} : a < min b c → a < b :=
+assume hmin, lt_of_lt_of_le hmin (min_le_left b c)
+
+theorem lt_min_right {a b c : nat} : a < min b c → a < c :=
+assume hmin, lt_of_lt_of_le hmin (min_le_right b c)
+
 section max_nat
 
 def max_nat : list nat → nat
@@ -388,3 +439,226 @@ end
 end max_nat
 
 end nat
+
+/-! # fin -/
+namespace fin
+open fin
+
+theorem eq_or_exists_eq {n : ℕ} (i : fin (n + 1)) : i = n ∨ ∃ j : fin n, i = j :=
+begin
+  rcases eq_or_lt_of_le (le_of_lt_succ i.prop) with (h | h),
+  { left,
+    have : ↑n = ↑(i.val), { rw h },
+    rw this,
+    simp },
+  { right, use ⟨i.val, h⟩, simp }
+end
+
+/-! # range -/
+
+def range_core (n : nat) : list (fin (n + 1)) → Π (m : nat), m < n + 1 → list (fin (n + 1))
+| l 0       hm := ⟨0, hm⟩ :: l
+| l (m + 1) hm := range_core (⟨m + 1, hm⟩ :: l) m (lt_of_succ_lt hm)
+
+def range : Π (n : nat), list (fin n)
+| 0       := []
+| (n + 1) := range_core n [] n (lt_succ_self n)
+
+theorem mem_range_core {n m : nat} (hm : m < n + 1) : 
+  ∀ (l : list (fin (n + 1))) (a : fin (n + 1)),
+  a ∈ range_core n l m hm ↔ (a ∈ l ∨ a.val ≤ m) :=
+begin
+  intros l a,
+  induction m with m ih generalizing l,
+  { simp [range_core],
+    split,
+    { rintro (rfl | h),
+      { exact or.inr rfl },
+      { exact or.inl h } },
+    { rintro (h | h),
+      { exact or.inr h },
+      { exact or.inl (ext h) } } },
+  { split,
+    { intro ha,
+      unfold range_core at ha,
+      rcases (ih (lt_of_succ_lt hm) _).mp ha with (h | h),
+      { rcases eq_or_mem_of_mem_cons h with (rfl | hl),
+        { right, refl },
+        { exact or.inl hl } },
+      { exact or.inr (le_succ_of_le h) } },
+    { intro ha,
+      unfold range_core,
+      apply (ih (lt_of_succ_lt hm) _).mpr,
+      rcases ha with (h | h),
+      { exact or.inl (mem_cons_of_mem _ h) },
+      { rcases eq_or_lt_of_le h with (h | h),
+        { left,
+          have : a = ⟨m + 1, hm⟩,
+          { exact ext h },
+          rw this,
+          exact mem_cons_self _ l },
+        { exact or.inr (le_of_lt_succ h) } } } }
+end
+
+theorem mem_range (n : nat) : ∀ (a : fin n), a ∈ range n :=
+begin
+  intro a,
+  induction n with n ih,
+  { exact elim0 a },
+  { apply (mem_range_core (lt_succ_self n) [] a).mpr,
+    exact or.inr (le_of_lt_succ a.prop) }
+end
+
+/-! # Cartesian product -/
+
+def cp (n m : nat) : list (fin n × fin m) :=
+  join ((range n).map (λ a, (range m).map (λ b, ⟨a, b⟩)))
+
+theorem mem_cp (n m : nat) : ∀ (a : fin n) (b : fin m), (a, b) ∈ cp n m :=
+begin
+  intros a b,
+  simp only [cp, mem_join, mem_map, exists_exists_and_eq_and, prod.mk.inj_iff, exists_eq_right_right],
+  exact ⟨mem_range n a, mem_range m b⟩
+end
+
+def square : Π {n : nat}, fin n → fin (n^2)
+| 0       i := elim0 i
+| (n + 1) i := ⟨i.val * (n + 1), (pow_two (n + 1)).symm ▸ (mul_lt_mul_right (zero_lt_succ n)).mpr i.prop⟩
+
+theorem nat.mul_pred_eq_square_sub (n : nat) : n * (n - 1) = n^2 - n :=
+by rw [pow_two, nat.mul_sub_left_distrib, mul_one]
+
+theorem nat.le_square_sub_of_lt {a b : nat} : a < b → a * b ≤ b^2 - b :=
+begin
+  intro h,
+  cases b,
+  { exact absurd h (nat.not_lt_zero a) },
+  { rw ← nat.mul_pred_eq_square_sub,
+    simp,
+    rw mul_comm b.succ b,
+    exact (mul_le_mul_right (pos_of_gt h)).mpr (le_of_lt_succ h) }
+end
+
+theorem nat.sub_add_lt_of_lt_of_lt {a b c : nat} : a < b → b < c → c - b + a < c :=
+assume ha hb, lt_of_lt_of_le (add_lt_add_left ha (c - b)) (le_of_eq (nat.sub_add_cancel (le_of_lt hb)))
+
+theorem nat.lt_square_of_gt_one {a : nat} : 1 < a → a < a^2 :=
+begin
+  intro h,
+  rw pow_two,
+  exact lt_mul_self h
+end
+
+theorem nat.sub_add_lt_square_of_lt {a b : nat} : a < b → b^2 - b + a < b^2 :=
+begin
+  intro h,
+  cases b,
+  { exact absurd h (nat.not_lt_zero a) },
+  { cases b,
+    { simp at h, subst h, simp },
+    { have : 1 < b.succ.succ, dec_trivial,
+      exact nat.sub_add_lt_of_lt_of_lt h (nat.lt_square_of_gt_one this) } }
+end
+
+theorem nat.mul_add_lt_square_of_lt_of_lt {a b c : nat} : a < c → b < c → (a * c) + b < c^2 :=
+assume h₁ h₂, lt_of_le_of_lt (add_le_add_right (nat.le_square_sub_of_lt h₁) b) 
+  (nat.sub_add_lt_square_of_lt h₂)
+
+def square_add : Π {n : nat}, fin n → fin n → fin (n^2)
+| 0       i j := fin.elim0 i
+| (n + 1) i j := ⟨i.val * (n + 1) + j.val, nat.mul_add_lt_square_of_lt_of_lt i.prop j.prop⟩
+
+end fin
+
+namespace finset
+open finset
+
+variables [decidable_eq α] 
+
+theorem subset_union_of_subset_left {s₁ s₂ : finset α} (s₃ : finset α) :
+  s₁ ⊆ s₂ → s₁ ⊆ s₂ ∪ s₃ :=
+λ h, subset.trans h (subset_union_left s₂ s₃)
+
+theorem subset_union_of_subset_right {s₁ s₃ : finset α} (s₂ : finset α) :
+  s₁ ⊆ s₃ → s₁ ⊆ s₂ ∪ s₃ :=
+λ h, subset.trans h (subset_union_right s₂ s₃)
+
+end finset
+
+namespace list
+
+/-! # idx_filter -/
+
+/- Better version with fin, but tough to prove theorems about
+def filter_by_idx (l : list α) (p : fin (length l) → Prop) [decidable_pred p] : list α :=
+  map prod.snd (filter (p ∘ prod.fst) (zip (fin.range (length l)) l))
+-/
+
+-- Version with nat. Still hard to prove things
+--def filter_by_idx (p : nat → Prop) [decidable_pred p] (l : list α) : list α :=
+--  map prod.snd (filter (p ∘ prod.fst) (zip (range (length l)) l))
+
+section filter_by_idx
+
+variables (p : nat → Prop) [decidable_pred p] (a : α) (l : list α)
+
+def filter_by_idx_core : nat → list α → list α
+| n []        := []
+| n (a :: as) := if p n then a :: (filter_by_idx_core (n + 1) as) 
+                 else filter_by_idx_core (n + 1) as
+
+def filter_by_idx : list α := filter_by_idx_core p 0 l
+
+@[simp] theorem filter_by_idx_core_nil (n : nat) : filter_by_idx_core p n ([] : list α) = [] := rfl
+@[simp] theorem filter_by_idx_nil : filter_by_idx p ([] : list α) = [] := rfl
+
+@[simp] theorem filter_by_idx_core_singleton (n : nat) : 
+  filter_by_idx_core p n [a] = if p n then [a] else [] := rfl
+
+@[simp] theorem filter_by_idx_singleton : filter_by_idx p [a] = if p 0 then [a] else [] := rfl
+
+theorem filter_by_idx_core_add (n c : nat) :
+  filter_by_idx_core (p ∘ (λ x, x + c)) n l = filter_by_idx_core p (n + c) l :=
+begin
+  induction l with a as ih generalizing n c,
+  { refl },
+  { unfold filter_by_idx_core,
+    by_cases hp : p (n + c);
+    { simp [hp],
+      rw [add_assoc n c 1, add_comm c 1, ← add_assoc n 1 c],
+      exact ih (n + 1) c } }
+end
+
+@[simp] theorem filter_by_idx_cons (p : nat → Prop) [decidable_pred p] (a : α) (l : list α) :
+  filter_by_idx p (a :: l) = if p 0 then a :: filter_by_idx (p ∘ succ) l else filter_by_idx (p ∘ succ) l :=
+begin
+  unfold filter_by_idx,
+  rw filter_by_idx_core,
+  by_cases hp : p 0;
+  { simp [hp], exact (filter_by_idx_core_add p l 0 1).symm }
+end
+
+theorem map_filter_by_idx (f : β → α) (l : list β) (p : nat → Prop) [decidable_pred p] :
+  filter_by_idx p (map f l) = map f (filter_by_idx p l) :=
+begin
+  unfreezingI { induction l with b bs ih generalizing p,
+  { refl },
+  { by_cases hp : p 0;
+    { simp [hp], apply ih (p ∘ succ) } } }
+end
+
+theorem filter_by_idx_sublist : filter_by_idx p l <+ l :=
+begin
+  unfreezingI { induction l with a as ih generalizing p,
+  { refl },
+  { by_cases hp : p 0; simp [hp],
+    { apply sublist.cons_cons a, exact ih _ },
+    { apply sublist.cons, exact ih _ } } }
+end
+
+theorem filter_by_idx_subset : filter_by_idx p l ⊆ l :=
+sublist.subset (filter_by_idx_sublist _ _)
+
+end filter_by_idx
+
+end list

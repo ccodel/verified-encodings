@@ -14,8 +14,6 @@ import cnf.cnf
 import data.nat.basic
 import data.nat.pow
 
-universe u
-
 -- Represents the parametric type of the variable stored in the literal
 variables {V : Type*}
 

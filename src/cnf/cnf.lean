@@ -17,8 +17,6 @@ import data.list.perm
 import init.data.nat
 import data.nat.basic
 
-universe u
-
 -- Represents the parametric type of the variable stored in the literal
 variables {V : Type*}
 
@@ -81,7 +79,7 @@ by simp only [cnf.eval, foldr, bool.band_comm]
 theorem eval_ff_cons_of_eval_ff (c : clause V) : f.eval τ = ff → cnf.eval τ (c :: f) = ff :=
 assume h, by rw [eval_cons, h, band_ff]
 
-theorem eval_append (τ : assignment V) (f₁ f₂ : cnf V) : 
+@[simp] theorem eval_append (τ : assignment V) (f₁ f₂ : cnf V) : 
   cnf.eval τ (f₁ ++ f₂) = f₁.eval τ && f₂.eval τ :=
 begin
   unfold cnf.eval,
@@ -173,10 +171,12 @@ protected def vars : cnf V → finset V
 @[simp] theorem vars_singleton (c : clause V) : cnf.vars [c] = clause.vars c :=
 by { unfold cnf.vars, rw finset.union_empty }
 
+@[simp] theorem vars_cons (c : clause V) (f : cnf V) : cnf.vars (c :: f) = c.vars ∪ f.vars := rfl
+
 theorem mem_vars_cons_of_mem_vars (c : clause V) : v ∈ f.vars → v ∈ cnf.vars (c :: f) :=
 assume h, finset.mem_union.mpr (or.inr h)
 
-theorem vars_append (f₁ f₂ : cnf V) : cnf.vars (f₁ ++ f₂) = f₁.vars ∪ f₂.vars :=
+@[simp] theorem vars_append (f₁ f₂ : cnf V) : cnf.vars (f₁ ++ f₂) = f₁.vars ∪ f₂.vars :=
 begin
   induction f₁ with c cs ih,
   { simp only [empty_union, vars_nil, nil_append] },
@@ -194,7 +194,21 @@ begin
   { exact eq.trans IH₁ IH₂ }
 end
 
---theorem vars_perm_strong :
+@[simp] theorem vars_join {v : V} : ∀ ⦃L : list (cnf V)⦄, 
+  v ∈ cnf.vars (join L) ↔ ∃ (F : cnf V), F ∈ L ∧ v ∈ cnf.vars F :=
+begin
+  intro L,
+  induction L with F Fs ih,
+  { simp only [join, vars_nil, not_mem_empty, not_mem_nil, false_and, exists_false] },
+  { simp [ih, cnf.vars_append],
+    split,
+    { rintro (h | ⟨F, hf₁, hf₂⟩),
+      { use [F, or.inl rfl, h] },
+      { use [F, or.inr hf₁, hf₂] } },
+    { rintro ⟨F, (rfl | hf₁), hf₂⟩,
+      { exact or.inl hf₂ },
+      { exact or.inr ⟨_, hf₁, hf₂⟩ } } }
+end
 
 theorem clause_vars_subset_of_vars_of_mem : c ∈ f → c.vars ⊆ f.vars :=
 begin
@@ -247,24 +261,39 @@ def eqsat (f₁ f₂ : cnf V) := satisfiable f₁ ↔ satisfiable f₂
 @[trans] theorem eqsat.trans {f₁ f₂ f₃ : cnf V} : eqsat f₁ f₂ → eqsat f₂ f₃ → eqsat f₁ f₃ :=
 λ h₁ h₂, ⟨λ h, h₂.1 (h₁.1 h), λ h, h₁.2 (h₂.2 h)⟩
 
-/-! # Equivalence on domain theorems -/
-
 open assignment
 
-theorem eval_eq_of_eqod [decidable_eq V] {τ₁ τ₂ : assignment V} {f : cnf V} :
-  (eqod τ₁ τ₂ f.vars) → f.eval τ₁ = f.eval τ₂ :=
+/-! # S-equivalence -/
+
+def sequiv (F₁ F₂ : cnf V) (s : finset V) := ∀ τ, 
+  ((∃ σ₁, F₁.eval σ₁ = tt ∧ (agree_on τ σ₁ s)) ↔ (∃ σ₂, F₂.eval σ₂ = tt ∧ (agree_on τ σ₂ s)))
+
+@[refl] theorem sequiv.refl (F : cnf V) (s : finset V) : sequiv F F s :=
+assume _, iff.rfl
+
+@[symm] theorem sequiv.symm {F₁ F₂ : cnf V} {s : finset V} : sequiv F₁ F₂ s → sequiv F₂ F₁ s :=
+assume h τ, (h τ).symm
+
+@[trans] theorem sequiv.trans {F₁ F₂ F₃ : cnf V} {s : finset V} :
+  sequiv F₁ F₂ s → sequiv F₂ F₃ s → sequiv F₁ F₃ s :=
+assume h₁ h₂ τ, ⟨λ h, (h₂ τ).mp ((h₁ τ).mp h), λ h, (h₁ τ).mpr ((h₂ τ).mpr h)⟩
+
+/-! # agree_on theorems -/
+
+theorem eval_eq_of_agree_on [decidable_eq V] {τ₁ τ₂ : assignment V} {f : cnf V} :
+  (agree_on τ₁ τ₂ f.vars) → f.eval τ₁ = f.eval τ₂ :=
 begin
   intro h,
   cases hev : (cnf.eval τ₂ f),
   { apply eval_ff_iff_exists_clause_eval_ff.mpr,
     rcases eval_ff_iff_exists_clause_eval_ff.mp hev with ⟨c, hc, hff⟩,
     use [c, hc],
-    exact hff ▸ clause.eval_eq_of_eqod 
-      (eqod_subset (clause_vars_subset_of_vars_of_mem hc) h) },
+    exact hff ▸ clause.eval_eq_of_agree_on 
+      (agree_on_subset (clause_vars_subset_of_vars_of_mem hc) h) },
   { apply eval_tt_iff_forall_clause_eval_tt.mpr,
     intros c hc,
-    exact (eval_tt_iff_forall_clause_eval_tt.mp hev c hc) ▸ clause.eval_eq_of_eqod
-      (eqod_subset (clause_vars_subset_of_vars_of_mem hc) h) }
+    exact (eval_tt_iff_forall_clause_eval_tt.mp hev c hc) ▸ clause.eval_eq_of_agree_on
+      (agree_on_subset (clause_vars_subset_of_vars_of_mem hc) h) }
 end
 
 end cnf

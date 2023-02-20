@@ -6,37 +6,36 @@ Carnegie Mellon University
 -/
 
 import basic
-import cnf.literal cnf.assignment cnf.clause cnf.cnf cnf.explode
+import cnf.literal cnf.assignment cnf.clause cnf.cnf cnf.explode cnf.encoding
 import data.list.basic data.finset.basic
 
 universe u
 
--- Represents the type of the variable stored in the literal
-variables {V : Type u}
-
-/- An n-variable XOR constraint is a map from a list of bools to an output bool -/
-def Xor (l : list bool) : bool := l.foldr bxor ff
-
-namespace Xor
-
 open clause
 open nat list
+open encoding
+
+-- Represents the type of the variable stored in the literal
+variables {V : Type u} [decidable_eq V]
+
+/- An n-variable XOR constraint is a map from a list of bools to an output bool -/
+def Xor : constraint := λ l, (l.foldr bxor ff)
+def XorF : constraint := λ l, (l.foldr bxor tt)
+
+namespace Xor
 
 /-! # eval -/
 section eval
 
 variables (τ : assignment V) (l l₁ l₂ : list (literal V)) (lit : literal V)
 
-/- Evaluate the variables under the assignment according to typical XOR -/
-protected def eval : bool := Xor (l.map (literal.eval τ))
-
 @[simp] theorem eval_nil : Xor.eval τ [] = ff := rfl
 
 @[simp] theorem eval_singleton : Xor.eval τ [lit] = lit.eval τ :=
-by simp only [Xor.eval, Xor, map, bool.bxor_ff_right, foldr]
+by simp only [constraint.eval, Xor, map, bool.bxor_ff_right, foldr]
 
 theorem eval_cons : Xor.eval τ (lit :: l) = bxor (lit.eval τ) (Xor.eval τ l) :=
-by simp only [Xor.eval, Xor, foldr, foldr_map]
+by simp only [constraint.eval, Xor, foldr, foldr_map]
 
 theorem eval_append : 
   Xor.eval τ (l₁ ++ l₂) = bxor (Xor.eval τ l₁) (Xor.eval τ l₂) :=

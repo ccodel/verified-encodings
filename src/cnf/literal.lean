@@ -9,8 +9,6 @@ Carnegie Mellon University
 
 import tactic
 
-universe u
-
 -- Represents the type of the variable stored in the literal
 variable {V : Type*}
 
@@ -19,7 +17,7 @@ All propositional formulas are comprised of Boolean literals.
 Literals are positive or negative forms of the underlying variable type.
 -/
 @[derive decidable_eq]
-inductive literal (V)
+inductive literal (V : Type*)
 | Pos (v : V) : literal
 | Neg (v : V) : literal
 
@@ -128,7 +126,7 @@ end /- end section -/
 /-! # Flip evaluation -/
 
 -- When a literal is flipped, its truth assignment is negated
-theorem eval_flip (τ : assignment V) (l : literal V) : 
+@[simp] theorem eval_flip (τ : assignment V) (l : literal V) : 
   l.flip.eval τ = bnot (l.eval τ) :=
 by cases l; simp only [literal.flip, literal.eval, bnot_bnot]
 

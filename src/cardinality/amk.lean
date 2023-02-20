@@ -10,6 +10,7 @@ import cnf.literal
 import cnf.assignment
 import cnf.clause
 import cardinality.distinct
+import cnf.encoding
 
 variables {V : Type*} [decidable_eq V] [inhabited V]
 
@@ -19,7 +20,7 @@ open list
 open nat
 open distinct
 
-def amk (k : nat) (l : list bool) : bool := l.count tt ≤ k
+def amk (k : nat) : constraint := λ (l : list bool), l.count tt ≤ k
 
 namespace amk
 
@@ -28,183 +29,160 @@ namespace amk
 @[simp] theorem amk_singleton_pos (k : nat) (b : bool) : amk (k + 1) [b] = tt :=
 by { cases b; simp [amk, count_singleton'] }
 
-protected def eval (k : nat) (τ : assignment V) (l : list (literal V)) : bool :=
-  amk k (l.map (literal.eval τ))
-
 variables (k : nat) (τ : assignment V) (l : list (literal V)) (lit : literal V)
 
-@[simp] theorem eval_nil : amk.eval k τ [] = tt :=
-by simp only [amk.eval, amk, count_nil, to_bool_true_eq_tt, zero_le, map_nil]
+@[simp] theorem eval_nil : (amk k).eval τ [] = tt :=
+by simp only [constraint.eval, amk, count_nil, to_bool_true_eq_tt, zero_le, map_nil]
 
-@[simp] theorem eval_singleton_pos : amk.eval (k + 1) τ [lit] = tt :=
-by { cases h : lit.eval τ; simp [amk.eval, amk, count_singleton', h] }
+@[simp] theorem eval_singleton_pos : (amk (k + 1)).eval τ [lit] = tt :=
+by { cases h : lit.eval τ; simp [constraint.eval, amk, count_singleton', h] }
 
-@[simp] theorem eval_singleton_zero : 
-  (amk.eval 0 τ [lit] = tt) ↔ lit.eval τ = ff :=
+@[simp] theorem eval_singleton_zero : ((amk 0).eval τ [lit] = tt) ↔ lit.eval τ = ff :=
 begin
   cases h : (lit.eval τ),
   { split,
     { tautology },
-    { intro _, simp [amk.eval, amk, h] } },
+    { intro _, simp [constraint.eval, amk, h] } },
   { split,
     { intro hamk,
-      simp [amk.eval, amk, h] at hamk,
+      simp [constraint.eval, amk, h] at hamk,
       contradiction },
     { intro h, contradiction } }
 end
 
 theorem eval_tt_of_ge_length {k : nat} {l : list (literal V)} :
-  k ≥ length l → ∀ (τ : assignment V), amk.eval k τ l = tt :=
+  k ≥ length l → ∀ (τ : assignment V), (amk k).eval τ l = tt :=
 begin
   intros hk τ,
-  simp [amk.eval, amk],
+  simp [constraint.eval, amk],
   have := count_le_length tt (map (literal.eval τ) l),
   rw length_map at this,
   exact le_trans this hk
 end
 
 theorem eval_cons_pos {k : nat} {τ : assignment V} {lit : literal V} : 
-  lit.eval τ = tt → ∀ l, amk.eval (k + 1) τ (lit :: l) = amk.eval k τ l :=
-assume hlit l, by simp [amk.eval, amk, hlit, succ_le_succ_iff]
+  lit.eval τ = tt → ∀ l, (amk (k + 1)).eval τ (lit :: l) = (amk k).eval τ l :=
+assume hlit l, by simp [constraint.eval, amk, hlit, succ_le_succ_iff]
 
-theorem eval_cons_neg {k : nat} {τ : assignment V} {lit : literal V} :
-  lit.eval τ = ff → ∀ l, amk.eval k τ (lit :: l) = amk.eval k τ l :=
-assume hlit l, by simp [amk.eval, amk, hlit]
+theorem eval_cons_neg {τ : assignment V} {lit : literal V} :
+  lit.eval τ = ff → ∀ k l, (amk k).eval τ (lit :: l) = (amk k).eval τ l :=
+assume hlit l, by simp [constraint.eval, amk, hlit]
 
 theorem eval_tt_of_le_of_eval_tt {τ : assignment V} {l : list (literal V)} 
-  {k₁ k₂ : nat} : k₁ ≤ k₂ → amk.eval k₁ τ l = tt → amk.eval k₂ τ l = tt :=
+  {k₁ k₂ : nat} : k₁ ≤ k₂ → (amk k₁).eval τ l = tt → (amk k₂).eval τ l = tt :=
 begin
-  simp only [amk.eval, amk, ge_iff_le, to_bool_iff],
+  simp only [constraint.eval, amk, ge_iff_le, to_bool_iff],
   intros hk h₁,
   exact le_trans h₁ hk  
 end
 
 theorem eval_sublist {k : nat} {τ : assignment V} {l₁ l₂ : list (literal V)} :
-  l₁ <+ l₂ → amk.eval k τ l₂ = tt → amk.eval k τ l₁ = tt :=
+  l₁ <+ l₂ → (amk k).eval τ l₂ = tt → (amk k).eval τ l₁ = tt :=
 begin
-  simp [amk.eval, amk],
+  simp [constraint.eval, amk],
   intros hs h, 
   exact le_trans (sublist.count_le (sublist.map (literal.eval τ) hs) tt) h
 end
 
 theorem eval_drop {k : nat} {τ : assignment V} {l : list (literal V)} :
-  amk.eval k τ l = tt → ∀ (i : nat), amk.eval k τ (l.drop i) = tt :=
+  (amk k).eval τ l = tt → ∀ (i : nat), (amk k).eval τ (l.drop i) = tt :=
 assume hamk i, eval_sublist (drop_sublist i l) hamk
 
 theorem eval_take {k : nat} {τ : assignment V} {l : list (literal V)} :
-  amk.eval k τ l = tt → ∀ (i : nat), amk.eval k τ (l.take i) = tt :=
+  (amk k).eval τ l = tt → ∀ (i : nat), (amk k).eval τ (l.take i) = tt :=
 assume hamk i, eval_sublist (take_sublist i l) hamk 
+
+theorem eval_take_tail_pos {τ : assignment V} {l : list (literal V)} {i : nat} {Hi : i < length l} : 
+  (l.nth_le i Hi).eval τ = tt → ∀ (k : nat),
+  (amk (k + 1)).eval τ (l.take (i + 1)) = (amk k).eval τ (l.take i) :=
+begin
+  intros hl k,
+  induction i with i ih generalizing l k,
+  { rw nth_le_zero at hl,
+    simp [take_one_of_ne_nil (ne_nil_of_length_pos Hi), hl, constraint.eval, amk] },
+  { rcases exists_cons_of_ne_nil (ne_nil_of_length_pos (pos_of_gt Hi)) with ⟨l₁, ls, rfl⟩,
+    rw nth_le at hl,
+    cases h₁ : l₁.eval τ,
+    { simp only [take, eval_cons_neg h₁, ih _ hl] },
+    { cases k,
+      { simp [constraint.eval, amk, h₁, succ_le_succ_iff],
+        simp at Hi,
+        have Hi' := (succ_lt_succ_iff.mp Hi),
+        use [ls.nth_le _ Hi', nth_le_mem_take_of_lt Hi' (lt_succ_self i), hl] },
+      { simp [take, eval_cons_pos h₁], exact ih _ hl } } }
+end
+
+theorem eval_take_tail_neg {τ : assignment V} {l : list (literal V)} {i : nat} {Hi : i < length l} :
+  (l.nth_le i Hi).eval τ = ff → ∀ (k : nat),
+  (amk k).eval τ (l.take (i + 1)) = (amk k).eval τ (l.take i) :=
+begin
+  intros hl k,
+  induction i with i ih generalizing l k,
+  { rw nth_le_zero at hl,
+    simp [take_one_of_ne_nil (ne_nil_of_length_pos Hi), hl, constraint.eval, amk] },
+  { rcases exists_cons_of_ne_nil (ne_nil_of_length_pos (pos_of_gt Hi)) with ⟨l₁, ls, rfl⟩,
+    rw nth_le at hl,
+    cases h₁ : l₁.eval τ,
+    { simp [take, eval_cons_neg h₁, ih _ hl] },
+    { cases k,
+      { simp [take, constraint.eval, amk, h₁] },
+      { simp [take, eval_cons_pos h₁, ih _ hl] } } }
+end
+
+theorem eval_tt_of_sublist_of_eval_tt {k : nat} {τ : assignment V} {l₁ l₂ : list (literal V)} :
+  l₁ <+ l₂ → (amk k).eval τ l₂ = tt → (amk k).eval τ l₁ = tt :=
+begin
+  simp [constraint.eval, amk],
+  intros hls h₁,
+  exact le_trans (sublist.count_le (sublist.map (literal.eval τ) hls) tt) h₁
+end
+
+theorem eval_take_succ_tt_of_eval_take_tt {i k : nat} :
+  (amk k).eval τ (l.take (i + 1)) = tt → (amk k).eval τ (l.take i) = tt :=
+λ h, eval_tt_of_sublist_of_eval_tt (take_sublist_of_le (le_succ i) l) h
 
 /-! # amz -/
 
 theorem amz_of_amz_cons {τ : assignment V} {l : list (literal V)} {lit : literal V} :
-  amk.eval 0 τ (lit :: l) = tt → amk.eval 0 τ l = tt :=
+  (amk 0).eval τ (lit :: l) = tt → (amk 0).eval τ l = tt :=
 begin
-  simp [amk.eval, amk], cases literal.eval τ lit; simp
+  simp [constraint.eval, amk], cases literal.eval τ lit; simp
 end
 
 -- The special case where k = 0 is handled
-theorem amz_eval_tt_iff_forall_eval_ff :
-  amk.eval 0 τ l = tt ↔ (∀ (lit : literal V), lit ∈ l → lit.eval τ = ff) :=
+theorem amz_eval_tt_iff_forall_eval_ff {τ} {l} :
+  (amk 0).eval τ l = tt ↔ (∀ ⦃lit : literal V⦄, lit ∈ l → lit.eval τ = ff) :=
 begin
   split,
-  { simp [amk.eval, amk] },
+  { simp [constraint.eval, amk] },
   { intro h,
-    rw [amk.eval, amk, to_bool_iff, le_zero_iff],
+    rw [constraint.eval, amk, to_bool_iff, le_zero_iff],
     apply count_eq_zero_of_not_mem,
     simpa }
 end
 
 -- Can be done with contrapose, somehow
 theorem amz_eval_ff_iff_exists_eval_tt :
-  amk.eval 0 τ l = ff ↔ (∃ (lit : literal V), lit ∈ l ∧ lit.eval τ = tt) :=
+  (amk 0).eval τ l = ff ↔ (∃ (lit : literal V), lit ∈ l ∧ lit.eval τ = tt) :=
 begin
   split,
-  { contrapose, simp,
-    exact (amz_eval_tt_iff_forall_eval_ff τ l).mpr },
-  { contrapose, simp,
-    exact (amz_eval_tt_iff_forall_eval_ff τ l).mp }
+  { contrapose, simp, exact amz_eval_tt_iff_forall_eval_ff.mpr },
+  { contrapose, simp, exact amz_eval_tt_iff_forall_eval_ff.mp }
 end
 
 theorem eval_cons_pos_zero {τ : assignment V} {lit : literal V} :
-  lit.eval τ = tt → ∀ l, amk.eval 0 τ (lit :: l) = ff :=
+  lit.eval τ = tt → ∀ l, (amk 0).eval τ (lit :: l) = ff :=
 begin
   intros hlit l,
   apply (amz_eval_ff_iff_exists_eval_tt τ (lit :: l)).mpr,
   use [lit, mem_cons_self _ _, hlit]
 end
 
-/-! # back to general theorems -/
-
-theorem eval_tail_pos {k i : nat} {τ : assignment V} {l : list (literal V)}
-  {hi : i < length l} : (l.nth_le i hi).eval τ = tt →
-  amk.eval (k + 1) τ (l.take (i + 1)) = amk.eval k τ (l.take i) :=
-begin
-  intro hamk,
-  induction l with l₁ ls ih generalizing i k,
-  { simp },
-  { cases i,
-    { simp },
-    { rw [take, take],
-      rw nth_le at hamk,
-      rw [length, succ_lt_succ_iff] at hi,
-      cases h₁ : (l₁.eval τ),
-      { rw [eval_cons_neg h₁, eval_cons_neg h₁],
-        exact ih hamk },
-      { cases k,
-        { rw eval_cons_pos_zero h₁, -- Can be tightened up
-          rw eval_cons_pos h₁,
-          by_contradiction,
-          rw [eq_tt_eq_not_eq_ff, amz_eval_tt_iff_forall_eval_ff] at h,
-          have : length (ls.take (i + 1)) = i + 1,
-          { have h := length_take (i + 1) ls,
-            have : min (i + 1) (length ls) = i + 1,
-            { simp [succ_le_of_lt hi] },
-            rw this at h,
-            exact h },
-          have hlen : i < length (ls.take (i + 1)),
-          { rw this,
-            exact lt_succ_self i },
-          have hmem := nth_le_mem _ _ hlen,
-          have : (ls.nth_le i _) = (ls.take (i.succ)).nth_le i hlen,
-          { rw this at hlen,
-            exact nth_le_take ls hi hlen },
-          rw ← this at hmem,
-          have hff := h _ hmem,
-          have : literal.eval τ (ls.nth_le i hi) = tt,
-          { assumption },
-          rw this at hff,
-          contradiction },
-        { rw [eval_cons_pos h₁, eval_cons_pos h₁],
-          exact ih hamk } } } }
-end
-
-theorem eval_tail_neg {k i : nat} {τ : assignment V} {l : list (literal V)}
-  {hi : i < length l} : (l.nth_le i hi).eval τ = ff →
-  amk.eval k τ (l.take (i + 1)) = amk.eval k τ (l.take i) :=
-begin
-  intro hamk,
-  induction l with l₁ ls ih generalizing i k,
-  { simp },
-  { cases i,
-    { simp at hamk, cases k; simp [hamk] },
-    { rw [take, take],
-      rw nth_le at hamk,
-      rw [length, succ_lt_succ_iff] at hi,
-      cases h₁ : (l₁.eval τ),
-      { rw [eval_cons_neg h₁, eval_cons_neg h₁],
-        exact ih hamk },
-      { cases k,
-        { rw [eval_cons_pos_zero h₁, eval_cons_pos_zero h₁] },
-        { rw [eval_cons_pos h₁, eval_cons_pos h₁],
-          exact ih hamk } } } }
-end
-
 -- Can probably be shortened with the correct order of cases
 theorem exists_amk_split {k : nat} {τ : assignment V} {l : list (literal V)} : 
-  amk.eval k τ l = tt → ∀ {k₁ k₂ : nat}, k₁ + k₂ = k → 
+  (amk k).eval τ l = tt → ∀ {k₁ k₂ : nat}, k₁ + k₂ = k → 
   ∃ {l₁ l₂ : list (literal V)}, l₁ ++ l₂ = l ∧
-  amk.eval k₁ τ l₁ = tt ∧ amk.eval k₂ τ l₂ = tt :=
+  (amk k₁).eval τ l₁ = tt ∧ (amk k₂).eval τ l₂ = tt :=
 begin
   intros hamk k₁ k₂ hks,
   induction l with lit₁ ls ih generalizing k k₁ k₂,
@@ -217,7 +195,7 @@ begin
         use [(lit₁ :: l₁), l₂],
         simp [hls, eval_cons_neg hlit₁, hl₁, hl₂] },
       { rw [amz_eval_tt_iff_forall_eval_ff] at hamk,
-        rw (hamk _ (mem_cons_self lit₁ ls)) at hlit₁,
+        rw (hamk (mem_cons_self lit₁ ls)) at hlit₁,
         contradiction } },
     { cases k₁,
       { rw zero_add at hks, subst hks,
@@ -235,18 +213,18 @@ begin
           simp [hls, eval_cons_pos hlit₁, hl₁, hl₂] } } } }
 end
 
-theorem eval_eq_amk_of_eqod {τ₁ τ₂ : assignment V} {l : list (literal V)} :
-  ∀ (k : nat), (eqod τ₁ τ₂ (clause.vars l)) → amk.eval k τ₁ l = amk.eval k τ₂ l :=
+theorem eval_eq_of_agree_on {τ₁ τ₂ : assignment V} {l : list (literal V)} :
+  ∀ (k : nat), (agree_on τ₁ τ₂ (clause.vars l)) → (amk k).eval τ₁ l = (amk k).eval τ₂ l :=
 begin
-  intros k heqod,
+  intros k hagree_on,
   induction l with l ls ih generalizing k,
   { simp only [eval_nil] },
-  { have := eval_eq_of_eqod_of_var_mem heqod (mem_vars_of_mem (mem_cons_self l ls)),
+  { have := eval_eq_of_agree_on_of_var_mem hagree_on (mem_vars_of_mem (mem_cons_self l ls)),
     cases h : (l.eval τ₁),
     { rw eval_cons_neg h,
       rw this at h,
       rw eval_cons_neg h,
-      exact ih (eqod_subset (vars_subset_of_vars_cons _ _) heqod) k },
+      exact ih (agree_on_subset (vars_subset_of_vars_cons _ _) hagree_on) k },
     { cases k,
       { rw eval_cons_pos_zero h,
         rw this at h,
@@ -254,14 +232,14 @@ begin
       { rw eval_cons_pos h,
         rw this at h,
         rw eval_cons_pos h,
-        exact ih (eqod_subset (vars_subset_of_vars_cons _ _) heqod) k } } }
+        exact ih (agree_on_subset (vars_subset_of_vars_cons _ _) hagree_on) k } } }
 end
 
 /-! # amo -/
 
 theorem amo_eval_tt_iff_distinct_eval_ff_of_eval_tt 
   {τ : assignment V} {l : list (literal V)} :
-  amk.eval 1 τ l = tt ↔ (∀ {lit₁ lit₂ : literal V}, 
+  (amk 1).eval τ l = tt ↔ (∀ {lit₁ lit₂ : literal V}, 
   distinct lit₁ lit₂ l → lit₁.eval τ = tt → lit₂.eval τ = ff) :=
 begin
   induction l with l₁ ls ih,
@@ -281,7 +259,7 @@ begin
         cases i,
         { rw nth_le at hil,
           rw [hil, eval_cons_pos h₁, amz_eval_tt_iff_forall_eval_ff] at heval,
-          exact heval lit₂ hmem₂ },
+          exact heval hmem₂ },
         { cases j,
           { linarith },
           { have : distinct lit₁ lit₂ (l₂ :: ls),
@@ -293,7 +271,7 @@ begin
             { rw eval_cons_neg h at heval,
               exact ih.mp heval this h₁ },
             { rw [eval_cons_pos h, amz_eval_tt_iff_forall_eval_ff] at heval,
-              exact heval lit₂ hmem₂ } } } },
+              exact heval hmem₂ } } } },
       { intro h,
         cases h₁ : (literal.eval τ l₁),
         { rw eval_cons_neg h₁,

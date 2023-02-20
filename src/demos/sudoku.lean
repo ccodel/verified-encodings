@@ -19,298 +19,168 @@ import data.nat.basic
 import data.list.basic
 import data.list.range
 
-open nat
-open list
-open function
-open literal
-open encoding
-open clause cnf
-open assignment
+open nat fin list function
+open literal encoding constraint clause cnf assignment
 open alk amk distinct
-open direct_amo
-open sinz_amo
+open direct_amo sinz_amo
 
-def square_var (row col num : nat) : nat := 
-  (row * 81) + (col * 9) + num
+--def sudoku_list (V : Type*) (n : nat) := Π (l : list (literal V)), l.length = n^6
 
-def square_lit (row col num : nat) : literal nat := Pos (square_var row col num)
+variables {α V : Type*} [decidable_eq V] [inhabited V] {n : nat} (srow scol : fin n) (row col num : fin (n^2))
 
-def grid_coords (gr gc : nat) : list (nat × nat) :=
-  let row := gr * 3 in
-  let col := gc * 3 in
-  [(row, col), (row, col + 1), (row, col + 2),
-   (row + 1, col), (row + 1, col + 1), (row + 1, col + 2),
-   (row + 2, col), (row + 2, col + 1), (row + 2, col + 2)]
+def grid_coords : list (fin (n^2) × fin (n^2)) :=
+  join ((fin.range n).map (λ ro, (fin.range n).map (λ co, 
+    (fin.square_add srow ro, fin.square_add scol co))))
 
-def square_lits (row col : nat) := (range 9).map (λ num, square_lit row col num)
-def row_lits (row num : nat) := (range 9).map (λ col, square_lit row col num)
-def col_lits (col num : nat) := (range 9).map (λ row, square_lit row col num)
---def grid_lits (gr gc num : nat) := (grid_coords gr gc).map
---  (λ coord, square_lit coord.1 coord.2 num)
+def cell_idx : nat := (row.val * (n^4)) + (col.val * (n^2)) + num.val
 
-def square_valid (τ : assignment nat) (row col : nat) :=
-  (∀ {num num'}, num < 9 → num' < 9 → num ≠ num' → 
-    τ (square_var row col num) = tt → τ (square_var row col num') = ff) ∧
-  (∃ {num}, num < 9 ∧ τ (square_var row col num) = tt)
+theorem cell_idx_is_fin (n : nat) : ∀ (row col num : fin (n^2)),
+  cell_idx row col num < n^6 :=
+begin
+  sorry
+end
 
-def row_valid (τ : assignment nat) (row num : nat) :=
-  ∀ {col col'}, col < 9 → col' < 9 → col ≠ col' → 
-    τ (square_var row col num) = tt → τ (square_var row col' num) = ff
+def is_cell_lit := λ idx, idx ∈ (fin.range (n^2)).map (λ num, cell_idx row col num)
+def is_row_lit := λ idx, idx ∈ (fin.range (n^2)).map (λ col, cell_idx row col num)
+def is_col_lit := λ idx, idx ∈ (fin.range (n^2)).map (λ row, cell_idx row col num)
+def is_square_lit := λ idx, idx ∈ (grid_coords srow scol).map (λ ⟨row, col⟩, cell_idx row col num)
 
-def col_valid (τ : assignment nat) (col num : nat) :=
-  ∀ {row row'}, row < 9 → row' < 9 → row ≠ row' → 
-    τ (square_var row col num) = tt → τ (square_var row' col num) = ff
+instance is_cell_lit_is_decidable : decidable_pred (is_cell_lit row col) :=
+begin
+  unfold is_cell_lit, intro idx, simp only,
+  exact list.decidable_mem idx (map (cell_idx row col) (range (n^2)))
+end
 
---def subgrid_valid (τ : assignment nat) (rs cs : nat) :=
---  ∀ {ro co ro' co'}, ro < 3 → co < 3 → ro' < 3 → co' < 3 → ro ≠ ro' ∨ co ≠ co' → 
---    square τ (rs + ro) (cs + co) ≠ square τ (rs + ro') (cs + co')
+instance is_row_lit_is_decidable : decidable_pred (is_row_lit col num) :=
+begin
+  unfold is_row_lit, intro idx, simp only,
+  exact list.decidable_mem idx (map (λ (col_1 : fin (n^2)), cell_idx col col_1 num) (range (n ^ 2)))
+end
 
-def is_valid_sudoku (τ : assignment nat) :=
-  (∀ {row col}, row < 9 → col < 9 → square_valid τ row col) ∧ 
-  (∀ {row num}, row < 9 → num < 9 → row_valid τ row num) ∧
-  (∀ {col num}, col < 9 → num < 9 → col_valid τ col num)
-  --subgrid_valid τ 0 0 ∧ subgrid_valid τ 3 0 ∧ subgrid_valid τ 6 0 ∧
-  --subgrid_valid τ 0 3 ∧ subgrid_valid τ 3 3 ∧ subgrid_valid τ 6 3 ∧
-  --subgrid_valid τ 0 6 ∧ subgrid_valid τ 3 6 ∧ subgrid_valid τ 6 6
+instance is_col_lit_is_decidable : decidable_pred (is_col_lit row num) :=
+begin
+  unfold is_col_lit, intro idx, simp only,
+  exact list.decidable_mem idx (map (λ (row_1 : fin (n^2)), cell_idx row_1 row num) (range (n ^ 2)))
+end
 
---def sudoku_encoding (set_squares : list (nat × nat × nat)) : cnf nat :=
-def sudoku_encoding : cnf nat :=
-  -- Every square has at least one number
-  join ((range 9).map (λ row, ((range 9).map (λ col, square_lits row col)))) ++
-  -- Every square has at most one number
-  join ((range 9).map (λ row, join ((range 9).map (λ col, direct_amo (square_lits row col))))) ++
-  -- Every row has at most one instance of each number 1 - 9
-  join ((range 9).map (λ row, join ((range 9).map (λ num, direct_amo (row_lits row num))))) ++
-  -- Every col has at most one instance of each number 1 - 9
-  join ((range 9).map (λ col, join ((range 9).map (λ num, direct_amo (col_lits col num))))) 
+instance is_square_lit_is_decidable (srow scol : fin n) : decidable_pred (is_square_lit srow scol num) :=
+begin
+  unfold is_square_lit, intro idx, simp only,
+  exact list.decidable_mem idx (map (is_square_lit._match_1 num) (grid_coords srow scol))
+end
 
-  -- Every subgrid has at most one instance of each number 1 - 9
-  --join ((range 3).map (λ gr, join ((range 3).map (λ gc,
-  --  join ((range 9).map (λ num, direct_amo (grid_lits gr gc num))))))) ++
+@[inline, reducible] def validity_base (p : nat → Prop) [decidable_pred p] : constraint :=
+  (constraint.append (amk 1) (alk 1)) ∘ (filter_by_idx p)
 
-  -- For each (row, col, num) that is provided, add a unit clause setting that number
-  --set_squares.map (λ triple, [square_lit triple.1 triple.2.1 triple.2.2])
+@[inline, reducible] def weak_validity_base (p : nat → Prop) [decidable_pred p] := (amk 1) ∘ (filter_by_idx p)
 
---#eval sudoku_encoding []
---#eval length (sudoku_encoding [])
+def is_cell_valid := validity_base (is_cell_lit row col)
+def is_row_valid' := validity_base (is_row_lit col num)
+def is_col_valid' := validity_base (is_col_lit row num)
+def is_square_valid' := validity_base (is_square_lit srow scol num)
 
+def is_row_valid := weak_validity_base (is_row_lit col num)
+def is_col_valid := weak_validity_base (is_col_lit row num)
+def is_square_valid := weak_validity_base (is_square_lit srow scol num)
 
+def is_valid_sudoku (n : nat) : constraint :=
+let L := cp (n^2) (n^2) in
+constraint.len_check (
+  (fold (L.map (λ ⟨row, col⟩, is_cell_valid row col))) ++
+  (fold (L.map (λ ⟨col, num⟩, is_row_valid col num))) ++
+  (fold (L.map (λ ⟨row, num⟩, is_col_valid row num))) ++
+  (fold ((list.zip (cp n n) (fin.range (n^2))).map (λ 
+    ⟨⟨srow, scol⟩, num⟩, is_square_valid srow scol num))))
+(λ len, len = n^6)
 
-lemma lemma1 (row col : nat) : length (square_lits row col) = 9 := rfl
-lemma lemma2 (row col : nat) : length (square_lits row col) ≥ 2 := by simp [square_lits]
+def is_valid_sudoku' (n : nat) : constraint :=
+let L := cp (n^2) (n^2) in
+constraint.len_check (
+  (fold (L.map (λ ⟨row, col⟩, is_cell_valid row col))) ++
+  (fold (L.map (λ ⟨col, num⟩, is_row_valid' col num))) ++
+  (fold (L.map (λ ⟨row, num⟩, is_col_valid' row num))) ++
+  (fold ((list.zip (cp n n) (fin.range (n^2))).map (λ 
+    ⟨⟨srow, scol⟩, num⟩, is_square_valid' srow scol num))))
+(λ len, len = n^6)
 
-lemma lemma3' (r c : nat) {i} (Hi : i < length (square_lits r c)) :
-  (square_lits r c).nth_le i Hi = Pos (square_var r c i) :=
-by simp [square_lits, square_lit]
+theorem is_valid_implies_is_valid (n : nat) : ∀ (l : list bool),
+  is_valid_sudoku n l = is_valid_sudoku' n l :=
+begin
+  sorry
+end
 
-lemma lemma3 (τ : assignment nat) (r c : nat) {i} (Hi : i < length (square_lits r c)) : 
-  ((square_lits r c).nth_le i Hi).eval τ = τ (square_var r c i) :=
-by simp [lemma3' r c, literal.eval]
+/-
+def sq_lits  := (fin.range (n^2)).map (λ num, sql L hL row col num)
 
-lemma lemma4 (row num : nat) : length (row_lits row num) = 9 := rfl
-lemma lemma5 (row num : nat) : length (row_lits row num) ≥ 2 := by simp [row_lits]
+def Sq_lits : Π {α : Type*}, list α → list α := (λ {α : Type*} (l : list α), 
+  if hl : length l = n^6 then sq_lits l hl row col else [])
+-/
 
-lemma lemma6' (row num : nat) {i} (Hi : i < length (row_lits row num)) :
-  (row_lits row num).nth_le i Hi = Pos (square_var row i num) :=
-by simp [row_lits, square_lit]
+-- (univ: (fin 5 × fin 4))
+--#eval fintype.elems (fin 5 × fin 3) -- {(0, 0), (0, 1), ...}
 
-lemma lemma6 (τ : assignment nat) (row num : nat) {i} (Hi : i < length (row_lits row num)) : 
-  ((row_lits row num).nth_le i Hi).eval τ = τ (square_var row i num) :=
-by simp [lemma6' row num, literal.eval]
+def alo_enc : enc_fn V := direct_alo
+def amo_enc : enc_fn V := direct_amo
 
-lemma lemma7 (col num : nat) : length (col_lits col num) = 9 := rfl
-lemma lemma8 (col num : nat) : length (col_lits col num) ≥ 2 := by simp [col_lits]
+theorem amo_enc_is_correct : encodes (amk 1) (amo_enc : enc_fn V) :=
+direct_amo_encodes_amo
 
-lemma lemma9' (col num : nat) {i} (Hi : i < length (col_lits col num)) :
-  (col_lits col num).nth_le i Hi = Pos (square_var i col num) :=
-by simp [col_lits, square_lit]
+theorem alo_enc_is_correct : encodes (alk 1) (alo_enc : enc_fn V) :=
+direct_alo_encodes_alo
 
-lemma lemma9 (τ : assignment nat) (col num : nat) {i} (Hi : i < length (col_lits col num)) :
-  ((col_lits col num).nth_le i Hi).eval τ = τ (square_var i col num) :=
-by simp [lemma9' col num, literal.eval]
+def sudoku_encoding (n : nat) : enc_fn V :=
+let L : list (fin (n^2) × fin (n^2)) := cp (n^2) (n^2) in
+encoding.len_check (
+  (encoding.fold (L.map (λ ⟨row, col⟩,
+    (encoding.append amo_enc alo_enc) ∘ (filter_by_idx (is_cell_lit row col))))) ++
+  (fold (L.map (λ ⟨col, num⟩, 
+    amo_enc ∘ (filter_by_idx (is_row_lit col num))))) ++
+  (fold (L.map (λ ⟨row, num⟩, 
+    amo_enc ∘ (filter_by_idx (is_col_lit row num))))) ++
+  (fold ((list.zip (cp n n) (fin.range (n^2))).map (λ ⟨⟨srow, scol⟩, num⟩, 
+    amo_enc ∘ (filter_by_idx (is_square_lit srow scol num))))))
+(λ len, len = n^6)
 
-lemma lemma10 : range 9 = [0, 1, 2, 3, 4, 5, 6, 7, 8] := rfl
+/-
+def l₀ : list (literal nat) := (fin.range (3^6)).map (λ n, Pos n)
+def hl₀ : length l₀ = 3^6 := by dec_trivial
+def g₀ : gensym nat := ⟨3^6, id, injective_id⟩
 
-lemma lemma11 (r c) {num : nat} (hnum : num < 9) : 
-  (square_lits r c).nth_le num hnum = Pos (square_var r c num) :=
-by simp [square_lits, square_lit]
+def l₁ : list (literal nat) := (fin.range (2^6)).map (λ n, Pos n)
+def hl₁ : length l₁ = 2^6 := by dec_trivial
+def g₁ : gensym nat := ⟨2^6, id, injective_id⟩
 
-lemma lemma12 (r num) {c : nat} (hc : c < 9) : 
-  (row_lits r num).nth_le c hc = Pos (square_var r c num) :=
-by simp [row_lits, square_lit]
+def enc_l₀ := (sudoku_encoding 3 l₀ g₀)
+def enc_l₁ := (sudoku_encoding 2 l₁ g₁)
+def enc_l₀' := (sudoku_encoding 3 [Pos 1] g₀)
 
-lemma lemma13 (c num) {r : nat} (hr : r < 9) : 
-  (col_lits c num).nth_le r hr = Pos (square_var r c num) :=
-by simp [col_lits, square_lit]
+#eval enc_l₀.1  -- Sudoku encoding for n = 3
+#eval enc_l₀'.1 -- This is supposed to fail, since the list is too small
+#eval enc_l₁.1  -- Sudoku encoding for n = 2
+-/
 
-lemma converter {τ : assignment nat} {r c : nat} (hr : r < 9) (hc : c < 9) : 
-  (∃ (cl : clause nat), cl ∈ direct_amo (square_lits r c) ∧ cl.eval τ = ff) → 
-  (∃ (cl : clause nat), (∃ (a : nat), a < 9 ∧ ∃ (b : nat), b < 9 ∧ cl ∈ direct_amo (square_lits a b)) ∧ cl.eval τ = ff) :=
-by { rintros ⟨cl, hcl, heval⟩, use [cl, r, hr, c, hc, hcl, heval] }
+theorem encodes_sudoku (n : nat) : encodes (is_valid_sudoku n) (sudoku_encoding n : enc_fn V) :=
+begin
+  apply check_encodes_of_encodes,
+  repeat { apply encodes_append },
+  { apply encodes_fold_fold,
+    rintros ⟨fin₁, fin₂⟩ hfin,
+    apply filter_by_idx_encodes_of_encodes,
+    exact encodes_append amo_enc_is_correct alo_enc_is_correct },
+  repeat { apply encodes_fold_fold,
+           rintros ⟨fin₁, fin₂⟩ hfin,
+           exact filter_by_idx_encodes_of_encodes _ amo_enc_is_correct },
+  apply encodes_fold_fold,
+  rintros ⟨⟨fin₁, fin₂⟩, fin₃⟩ hfins,
+  exact filter_by_idx_encodes_of_encodes _ amo_enc_is_correct
+end
 
-lemma converter₂ {τ : assignment nat} {r c : nat} (hr : r < 9) (hc : c < 9) :
-  (∃ (cl : clause nat), square_lits r c = cl ∧ cl.eval τ = ff) →
-  (∃ (cl : clause ℕ), (∃ (a : ℕ), a < 9 ∧ ∃ (a_1 : ℕ), a_1 < 9 ∧ square_lits a a_1 = cl) ∧ cl.eval τ = ff) :=
-by { rintros ⟨cl, hcl, heval⟩, use [cl, r, hr, c, hc, hcl, heval] }
-
-lemma converter₃ {τ : assignment nat} {r num : nat} (hr : r < 9) (hnum : num < 9) : 
-  (∃ (cl : clause nat), cl ∈ direct_amo (row_lits r num) ∧ cl.eval τ = ff) → 
-  (∃ (cl : clause nat), (∃ (a : nat), a < 9 ∧ ∃ (b : nat), b < 9 ∧ cl ∈ direct_amo (row_lits a b)) ∧ cl.eval τ = ff) :=
-by { rintros ⟨cl, hcl, heval⟩, use [cl, r, hr, num, hnum, hcl, heval] }
-
-lemma converter₄ {τ : assignment nat} {c num : nat} (hc : c < 9) (hnum : num < 9) : 
-  (∃ (cl : clause nat), cl ∈ direct_amo (col_lits c num) ∧ cl.eval τ = ff) → 
-  (∃ (cl : clause nat), (∃ (a : nat), a < 9 ∧ ∃ (b : nat), b < 9 ∧ cl ∈ direct_amo (col_lits a b)) ∧ cl.eval τ = ff) :=
-by { rintros ⟨cl, hcl, heval⟩, use [cl, c, hc, num, hnum, hcl, heval] }
-
-theorem direct_amo_eq_amo {τ : assignment nat} {l : list (literal nat)} : 
-  (direct_amo l).eval τ = amk.eval 1 τ l := sorry
-
-theorem encodes_sudoku {τ : assignment nat} :
-  is_valid_sudoku τ ↔ sudoku_encoding.eval τ = tt :=
+theorem encodes_full_sudoku (n : nat) : encodes (is_valid_sudoku' n) (sudoku_encoding n : enc_fn V) :=
 begin
   split,
-  { rintros ⟨hsq, hrow, hcol⟩,
-    rw eval_tt_iff_forall_clause_eval_tt,
-    intros cl hcl,
-    simp [sudoku_encoding] at hcl,
-    rcases hcl with (⟨r, hr, c, hc, h⟩ | ⟨r, hr, c, hc, h⟩ | 
-      ⟨r, hr, num, hnum, h⟩ | ⟨c, hc, num, hnum, h⟩),
-    { subst h,
-      simp [square_lits, eval_tt_iff_exists_literal_eval_tt],
-      rcases (hsq hr hc).2 with ⟨num, hlt, hnum⟩,
-      use [num, hlt],
-      simp [square_lit, literal.eval, hnum] },
-    { rcases exists_double_flip_eq_of_mem (lemma2 r c) h with ⟨lit₁, lit₂, rfl⟩,
-      rcases distinct_iff_mem.mpr h with ⟨i, j, hi, hj, hij, rfl, rfl⟩,
-      rw eval_tt_iff_exists_literal_eval_tt,
-      cases heval : ((square_lits r c).nth_le i hi).eval τ,
-      { use ((square_lits r c).nth_le i hi).flip,
-        simp [eval_flip, heval] },
-      { use ((square_lits r c).nth_le j hj).flip,
-        simp [eval_flip],
-        simp [lemma3] at heval |-,
-        rw lemma1 at hi hj,
-        exact (hsq hr hc).1 hi hj (ne_of_lt hij) heval } },
-    { rcases exists_double_flip_eq_of_mem (lemma5 r num) h with ⟨lit₁, lit₂, rfl⟩,
-      rcases distinct_iff_mem.mpr h with ⟨i, j, hi, hj, hij, rfl, rfl⟩,
-      rw eval_tt_iff_exists_literal_eval_tt,
-      cases heval : ((row_lits r num).nth_le i hi).eval τ,
-      { use ((row_lits r num).nth_le i hi).flip,
-        simp [eval_flip, heval] },
-      { use ((row_lits r num).nth_le j hj).flip,
-        simp [eval_flip],
-        simp [lemma6] at heval |-,
-        rw lemma4 at hi hj,
-        exact hrow hr hnum hi hj (ne_of_lt hij) heval } },
-    { rcases exists_double_flip_eq_of_mem (lemma8 c num) h with ⟨lit₁, lit₂, rfl⟩,
-      rcases distinct_iff_mem.mpr h with ⟨i, j, hi, hj, hij, rfl, rfl⟩,
-      rw eval_tt_iff_exists_literal_eval_tt,
-      cases heval : ((col_lits c num).nth_le i hi).eval τ,
-      { use ((col_lits c num).nth_le i hi).flip,
-        simp [eval_flip, heval] },
-      { use ((col_lits c num).nth_le j hj).flip,
-        simp [eval_flip],
-        simp [lemma9] at heval |-,
-        rw lemma7 at hi hj,
-        exact hcol hc hnum hi hj (ne_of_lt hij) heval } } },
-  { contrapose,
-    intro his,
-    rw [is_valid_sudoku] at his,
-    simp only [not_and_distrib, not_forall] at his,
-    simp only [sudoku_encoding, cnf.eval_append, append_assoc, band_eq_true_eq_eq_tt_and_eq_tt,  
-      not_and_distrib, eq_ff_eq_not_eq_tt],
-    rcases his with (⟨r, c, hr, hc, hsq⟩ | ⟨r, num, hr, hnum, hsq⟩ | 
-      ⟨c, num, hc, hnum, hsq⟩),
-    { rw [square_valid, not_and_distrib] at hsq,
-      simp at hsq,
-      rcases hsq with (⟨num, hnum, num', hnum', hne, hsq₁, hsq₂⟩ | hsq),
-      { right, left,
-        simp [eval_ff_iff_exists_clause_eval_ff],
-        apply converter hr hc,
-        have := eval_ff_iff_exists_clause_eval_ff.mp,
-        simp only [exists_prop] at this,
-        apply this,
-        rw direct_amo_eq_amo,
-        by_contradiction,
-        simp at h,
-        rw [amo_eval_tt_iff_distinct_eval_ff_of_eval_tt] at h,
-        rcases ne.lt_or_lt hne with (hlt | hlt),
-        { have : distinct (Pos (square_var r c num)) (Pos (square_var r c num')) (square_lits r c) :=  
-            ⟨num, num', hnum, hnum', hlt, lemma11 r c hnum, lemma11 r c hnum'⟩,
-          have := h this,
-          simp [literal.eval] at this,
-          rw this hsq₁ at hsq₂,
-          contradiction },
-        { have : distinct (Pos (square_var r c num')) (Pos (square_var r c num)) (square_lits r c) :=
-            ⟨num', num, hnum', hnum, hlt, lemma11 r c hnum', lemma11 r c hnum⟩,
-          have := h this,
-          simp [literal.eval] at this,
-          rw this hsq₂ at hsq₁,
-          contradiction },
-        exact classical.dec_eq ℕ,
-        exact {default := r} },
-      { left,
-        simp [eval_ff_iff_exists_clause_eval_ff],
-        apply converter₂ hr hc,
-        simp [eval_ff_iff_forall_literal_eval_ff],
-        intros l hl,
-        simp [square_lits] at hl,
-        rcases hl with ⟨num, hnum, rfl⟩,
-        simp [literal.eval, square_lit],
-        exact hsq _ hnum } },
-    { right, right, left,
-      simp [row_valid] at hsq,
-      rcases hsq with ⟨c, hc, c', hc', hne, ht, ht'⟩,
-      simp [eval_ff_iff_exists_clause_eval_ff],
-      apply converter₃ hr hnum,
-      have := eval_ff_iff_exists_clause_eval_ff.mp,
-      simp only [exists_prop] at this,
-      apply this,
-      rw direct_amo_eq_amo,
-      by_contradiction,
-      simp at h,
-      rw [amo_eval_tt_iff_distinct_eval_ff_of_eval_tt] at h,
-      rcases ne.lt_or_lt hne with (hlt | hlt),
-      { have : distinct (Pos (square_var r c num)) (Pos (square_var r c' num)) (row_lits r num) :=
-          ⟨c, c', hc, hc', hlt, lemma12 r num hc, lemma12 r num hc'⟩,
-        have := h this,
-        simp [literal.eval] at this,
-        rw this ht at ht',
-        contradiction },
-      { have : distinct (Pos (square_var r c' num)) (Pos (square_var r c num)) (row_lits r num) :=
-          ⟨c', c, hc', hc, hlt, lemma12 r num hc', lemma12 r num hc⟩,
-        have := h this,
-        simp [literal.eval] at this,
-        rw this ht' at ht,
-        contradiction },
-      exact classical.dec_eq ℕ,
-      exact {default := r} },
-    { right, right, right,
-      simp [col_valid] at hsq,
-      rcases hsq with ⟨r, hr, r', hr', hne, ht, ht'⟩,
-      simp [eval_ff_iff_exists_clause_eval_ff],
-      apply converter₄ hc hnum,
-      have := eval_ff_iff_exists_clause_eval_ff.mp,
-      simp only [exists_prop] at this,
-      apply this,
-      rw direct_amo_eq_amo,
-      by_contradiction,
-      simp at h,
-      rw [amo_eval_tt_iff_distinct_eval_ff_of_eval_tt] at h,
-      rcases ne.lt_or_lt hne with (hlt | hlt),
-      { have : distinct (Pos (square_var r c num)) (Pos (square_var r' c num)) (col_lits c num) :=
-          ⟨r, r', hr, hr', hlt, lemma13 c num hr, lemma13 c num hr'⟩,
-        have := h this,
-        simp [literal.eval] at this,
-        rw this ht at ht',
-        contradiction },
-      { have : distinct (Pos (square_var r' c num)) (Pos (square_var r c num)) (col_lits c num) :=
-          ⟨r', r, hr', hr, hlt, lemma13 c num hr', lemma13 c num hr⟩,
-        have := h this,
-        simp [literal.eval] at this,
-        rw this ht' at ht,
-        contradiction },
-      exact classical.dec_eq ℕ,
-      exact {default := r} } }
+  { intros l g hdis τ,
+    unfold constraint.eval,
+    rw ← is_valid_implies_is_valid,
+    exact (encodes_sudoku n).1 hdis τ },
+  { exact (encodes_sudoku n).2 }
 end

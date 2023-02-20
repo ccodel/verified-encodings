@@ -12,8 +12,6 @@ import basic
 
 import data.list.basic
 
-universe u
-
 -- Represents the parametric type of the variable stored in the literal
 variables {V : Type*}
 
@@ -104,7 +102,7 @@ begin
 end
 
 theorem eval_ff_iff_forall_literal_eval_ff {τ : assignment V} {c : clause V} : 
-  clause.eval τ c = ff ↔ ∀ l, l ∈ c → literal.eval τ l = ff :=
+  c.eval τ = ff ↔ ∀ l, l ∈ c → literal.eval τ l = ff :=
 begin
   induction c with l ls ih,
   { simp only [eval_nil, eq_self_iff_true, not_mem_nil, is_empty.forall_iff, implies_true_iff] },
@@ -528,8 +526,8 @@ protected def vars : clause V → finset V
 --| (l :: ls) := insert l.var (vars ls) -- Use insert instead?
 
 @[simp] theorem vars_nil : clause.vars ([] : clause V) = ∅ := rfl
-
 @[simp] theorem vars_singleton (l : literal V) : clause.vars [l] = {l.var} := rfl
+@[simp] theorem vars_cons (l : literal V) (c : clause V) : clause.vars (l :: c) = {l.var} ∪ c.vars := rfl
 
 theorem mem_vars_cons_self (l : literal V) (c : clause V) : l.var ∈ clause.vars (l :: c) :=
 finset.mem_union_left _ (finset.mem_singleton_self l.var)
@@ -537,6 +535,22 @@ finset.mem_union_left _ (finset.mem_singleton_self l.var)
 theorem mem_vars_cons_of_mem_vars {c : clause V} (l : literal V) {v : V} : 
   v ∈ c.vars → v ∈ clause.vars (l :: c) :=
 assume h, finset.mem_union.mpr (or.inr h)
+
+theorem vars_cons_of_mem {l : literal V} {c : clause V} : l.var ∈ c.vars →
+  clause.vars (l :: c) = c.vars :=
+begin
+  intro h,
+  rw vars_cons,
+  apply finset.ext_iff.mpr, intro v,
+  split,
+  { intro hv,
+    rcases finset.mem_union.mp hv with (hmem | hmem),
+    { rw finset.mem_singleton at hmem,
+      subst hmem,
+      exact h },
+    { exact hmem } },
+  { exact finset.mem_union_right _ }
+end
 
 theorem vars_append (c₁ c₂ : clause V) : (c₁ ++ c₂).vars = c₁.vars ∪ c₂.vars :=
 begin
@@ -651,33 +665,41 @@ open assignment
 
 variables {τ₁ τ₂ : assignment V} {c : clause V}
 
-theorem eval_eq_of_eqod : (eqod τ₁ τ₂ c.vars) → c.eval τ₁ = c.eval τ₂ :=
+theorem eval_eq_of_agree_on : (agree_on τ₁ τ₂ c.vars) → c.eval τ₁ = c.eval τ₂ :=
 begin
   intro h,
   cases hev : (c.eval τ₂),
   { rw eval_ff_iff_forall_literal_eval_ff at hev,
     apply eval_ff_iff_forall_literal_eval_ff.mpr,
     intros l hl,
-    exact hev l hl ▸ eval_eq_of_eqod_of_var_mem h (mem_vars_of_mem hl) },
+    exact hev l hl ▸ eval_eq_of_agree_on_of_var_mem h (mem_vars_of_mem hl) },
   { rcases eval_tt_iff_exists_literal_eval_tt.mp hev with ⟨l, hl, htt⟩,
     apply eval_tt_iff_exists_literal_eval_tt.mpr,
     use [l, hl],
-    exact htt ▸ eval_eq_of_eqod_of_var_mem h (mem_vars_of_mem hl) }  
+    exact htt ▸ eval_eq_of_agree_on_of_var_mem h (mem_vars_of_mem hl) }  
 end
 
-theorem count_tt_eq_of_eqod : (eqod τ₁ τ₂ c.vars) → c.count_tt τ₁ = c.count_tt τ₂ :=
+theorem nth_eval_eq_of_agree_on {l : list (literal V)} {i : nat} (hi : i < length l) :
+  (agree_on τ₁ τ₂ (clause.vars l)) → (l.nth_le i hi).eval τ₁ = (l.nth_le i hi).eval τ₂ :=
+assume hagree_on, eval_eq_of_agree_on_of_var_mem hagree_on (mem_vars_of_mem (nth_le_mem _ _ _))
+
+theorem agree_on_of_agree_on_vars_cons {l : literal V} : 
+  (agree_on τ₁ τ₂ (clause.vars (l :: c))) → agree_on τ₁ τ₂ (clause.vars c) :=
+assume hagree_on v hv, hagree_on _ (finset.mem_union_right _ hv)
+
+theorem count_tt_eq_of_agree_on : (agree_on τ₁ τ₂ c.vars) → c.count_tt τ₁ = c.count_tt τ₂ :=
 begin
   induction c with l ls ih,
-  { simp only [count_tt_nil, eqod_nil, vars_nil, forall_true_left] },
+  { simp only [count_tt_nil, agree_on_nil, vars_nil, forall_true_left] },
   { intro h,
     rw clause.vars at h,
     cases l;
     { rw literal.var at h,
-      simp [literal.eval, eqod_union_left h l (finset.mem_singleton_self l), ih (eqod_union_right h)] } }
+      simp [literal.eval, agree_on_union_left h l (finset.mem_singleton_self l), ih (agree_on_union_right h)] } }
 end
 
-theorem count_tt_ite (c : clause V) : c.count_tt (assignment.ite c.vars τ₁ τ₂) = c.count_tt τ₁ :=
-count_tt_eq_of_eqod (ite_eqod c.vars τ₁ τ₂)
+theorem count_tt_ite (c : clause V) : c.count_tt (aite c.vars τ₁ τ₂) = c.count_tt τ₁ :=
+count_tt_eq_of_agree_on (aite_agree_on c.vars τ₁ τ₂)
 
 end vars
 
