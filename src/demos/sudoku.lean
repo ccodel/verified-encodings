@@ -24,8 +24,6 @@ open literal encoding constraint clause cnf assignment
 open alk amk distinct
 open direct_amo sinz_amo
 
---def sudoku_list (V : Type*) (n : nat) := Π (l : list (literal V)), l.length = n^6
-
 variables {α V : Type*} [decidable_eq V] [inhabited V] {n : nat} (srow scol : fin n) (row col num : fin (n^2))
 
 def grid_coords : list (fin (n^2) × fin (n^2)) :=
@@ -33,12 +31,6 @@ def grid_coords : list (fin (n^2) × fin (n^2)) :=
     (fin.square_add srow ro, fin.square_add scol co))))
 
 def cell_idx : nat := (row.val * (n^4)) + (col.val * (n^2)) + num.val
-
-theorem cell_idx_is_fin (n : nat) : ∀ (row col num : fin (n^2)),
-  cell_idx row col num < n^6 :=
-begin
-  sorry
-end
 
 def is_cell_lit := λ idx, idx ∈ (fin.range (n^2)).map (λ num, cell_idx row col num)
 def is_row_lit := λ idx, idx ∈ (fin.range (n^2)).map (λ col, cell_idx row col num)
@@ -103,22 +95,6 @@ constraint.len_check (
     ⟨⟨srow, scol⟩, num⟩, is_square_valid' srow scol num))))
 (λ len, len = n^6)
 
-theorem is_valid_implies_is_valid (n : nat) : ∀ (l : list bool),
-  is_valid_sudoku n l = is_valid_sudoku' n l :=
-begin
-  sorry
-end
-
-/-
-def sq_lits  := (fin.range (n^2)).map (λ num, sql L hL row col num)
-
-def Sq_lits : Π {α : Type*}, list α → list α := (λ {α : Type*} (l : list α), 
-  if hl : length l = n^6 then sq_lits l hl row col else [])
--/
-
--- (univ: (fin 5 × fin 4))
---#eval fintype.elems (fin 5 × fin 3) -- {(0, 0), (0, 1), ...}
-
 def alo_enc : enc_fn V := direct_alo
 def amo_enc : enc_fn V := direct_amo
 
@@ -173,14 +149,4 @@ begin
   apply encodes_fold_fold,
   rintros ⟨⟨fin₁, fin₂⟩, fin₃⟩ hfins,
   exact filter_by_idx_encodes_of_encodes _ amo_enc_is_correct
-end
-
-theorem encodes_full_sudoku (n : nat) : encodes (is_valid_sudoku' n) (sudoku_encoding n : enc_fn V) :=
-begin
-  split,
-  { intros l g hdis τ,
-    unfold constraint.eval,
-    rw ← is_valid_implies_is_valid,
-    exact (encodes_sudoku n).1 hdis τ },
-  { exact (encodes_sudoku n).2 }
 end

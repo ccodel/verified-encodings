@@ -323,7 +323,7 @@ begin
       exact hc } }
 end
 
-theorem sinz_amo_formula_encodes : encodes_base (amk 1) (sinz_amo : enc_fn V) :=
+theorem sinz_amo_formula_encodes : is_correct (amk 1) (sinz_amo : enc_fn V) :=
 begin
   intros l g hdis τ,
   cases l with lit₁ ls,

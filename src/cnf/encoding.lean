@@ -142,9 +142,9 @@ begin
       { exact or.inr (ih.mpr ⟨c, h, hc⟩) } } }
 end
 
-/-! # check -/
+/-! # len_check -/
 
--- TODO: A better name exists, but basically a check on the input (can be a length check)
+-- Check the length of an input list to a constraint
 -- In the case where the function returns false, returns the all false constraint
 def len_check (c : constraint) (f : nat → bool) : constraint := λ l, if f (length l) then c l else ff
 
@@ -226,10 +226,6 @@ def fold (l : list (enc_fn V)) := l.foldr append append_id
 @[simp] theorem fold_cons (l : list (enc_fn V)) : fold (enc :: l) = enc ++ fold l :=
 by simp [fold]
 
--- TODO translate later?
---theorem fold_tt_iff_forall_tt {l : list constraint} {bs : list bool} :
---  (fold l) bs = tt ↔ ∀ (c : constraint), c ∈ l → c bs = tt :=
-
 /-! # encodes -/
 
 /- A CNF formula encodes a Boolean function on a base list of input literals
@@ -238,10 +234,9 @@ def formula_encodes := ∀ (τ : assignment V), (c.eval τ l = tt) ↔ ∃ σ, F
 
 /- An encoding function encodes a Boolean constraint if, when given a disjoint
    gensym, the encodes judgment is satisfied -/
-def encodes_base := ∀ ⦃l : list (literal V)⦄ ⦃g⦄, disj l g → formula_encodes c (enc l g).1 l
+def is_correct := ∀ ⦃l : list (literal V)⦄ ⦃g⦄, disj l g → formula_encodes c (enc l g).1 l
 
 /-! # Well-behavedness -/
--- TODO: name?
 
 /- Encoding functions are well-behaved if the only variables they generate are from the
    input literals and from the gensym, and no more. The gensym is also updated accordingly. -/
@@ -259,7 +254,7 @@ begin
   { exact hnmem (set.mem_union_right _ h.1 ) }
 end
 
--- TODO: not as strong as it could be?
+-- Not as strong as it could be?
 theorem mem_vars_or_stock_of_is_wb_of_mem {enc : enc_fn V} (henc : is_wb enc) :
   ∀ ⦃l : list (literal V)⦄ ⦃g⦄, disj l g →
   ∀ ⦃v : V⦄, v ∈ (enc l g).1.vars → v ∈ clause.vars l ∨ v ∈ g.stock :=
@@ -321,9 +316,12 @@ begin
   { exact set.mem_union_right _ ((set.mem_diff _).mp hv).1 }
 end
 
-def encodes := encodes_base c enc ∧ is_wb enc
+-- In an abuse of notation, we combine the is_correct and is_wb judgments together
+--   to simplify theorems and package together by what we mean when an 
+--   encoding function encodes a constraint
+def encodes := is_correct c enc ∧ is_wb enc
 
-theorem encodes_base_of_encodes : encodes c enc → encodes_base c enc :=
+theorem is_correct_of_encodes : encodes c enc → is_correct c enc :=
 assume h l g hdis, h.1 hdis
 
 theorem is_wb_of_encodes : encodes c enc → is_wb enc :=
@@ -395,7 +393,7 @@ begin
   { exact append_is_wb h₁.2 h₂.2 }
 end
 
-/-! # check -/
+/-! # len_check -/
 
 def len_check (f : nat → bool) : enc_fn V := 
   λ l g, if f (length l) then enc l g else ⟨[[]], g⟩

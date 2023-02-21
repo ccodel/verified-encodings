@@ -11,7 +11,7 @@ import cnf.assignment
 import cnf.clause
 import cnf.cnf
 import cnf.encoding
-import xor.xor
+import parity.parity
 import basic
 
 import data.list.basic
@@ -20,11 +20,11 @@ import data.nat.basic
 -- Represents the type of the variable stored in the literal
 variables {V : Type*} [decidable_eq V] [inhabited V]
 
-namespace Xor
+namespace parity
 
 open literal clause cnf encoding
 open list nat explode
-open Xor
+open parity
 
 /-! # Direct encoding -/
 section direct_encoding
@@ -39,7 +39,7 @@ def direct_xor' : list (literal V) → cnf V
       (λ c, ite (!bodd (c.count_flips ls)) (l :: c) (l.flip :: c))
 
 -- Translated into an encoding type
-def direct_xor : encoding V := dir_enc direct_xor'
+def direct_xor : enc_fn V := dir_enc direct_xor'
 
 @[simp] theorem direct_xor_nil : direct_xor' ([] : list (literal V)) = [[]] := rfl
 @[simp] theorem direct_xor_singleton (lit : literal V) : direct_xor' [lit] = [[lit]] := rfl
@@ -80,7 +80,7 @@ begin
 end
 
 -- These theorems begin to be dependent on order of encoding
--- If the underlying type of Xor changes to (fin)set, must update
+-- If the underlying type of parity changes to (fin)set, must update
 theorem map_var_eq_of_mem_direct_xor : c ∈ direct_xor' l → map var c = map var l :=
 begin
   cases l with l ls,
@@ -146,13 +146,13 @@ begin
 end
 
 -- Some proofs require the stronger statement that direct is exactly xor
-theorem eval_direct_xor_eq_eval_Xor (l : list (literal V)) (τ : assignment V) :
-  (direct_xor' l).eval τ = Xor.eval τ l :=
+theorem eval_direct_xor_eq_eval_parity (l : list (literal V)) (τ : assignment V) :
+  (direct_xor' l).eval τ = parity.eval τ l :=
 begin
   cases l with l ls,
   { simp only [cnf.eval_singleton, eval_nil, direct_xor_nil, clause.eval_nil] },
   { have he := eval_eq_bodd_count_tt τ (l :: ls),
-    cases h : (Xor.eval τ (l :: ls)),
+    cases h : (parity.eval τ (l :: ls)),
     { apply eval_ff_iff_exists_clause_eval_ff.mpr,
       use (clause.falsify τ (map var (l :: ls))),
       split,
@@ -167,25 +167,25 @@ begin
       apply eval_tt_iff_forall_clause_eval_tt.mpr,
       intros c hc,
       have mve := map_var_eq_of_mem_direct_xor hc,
-      have neqodd := ne_of_eq_ff_of_eq_tt
+      have nagree_ond := ne_of_eq_ff_of_eq_tt
         ((even_flips_iff_mem_direct_xor_of_map_var_eq mve).mpr hc) he.symm,
-      have neq := ne_of_apply_ne nat.bodd neqodd,
+      have neq := ne_of_apply_ne nat.bodd nagree_ond,
       rw clause.count_flips_comm at neq,
       exact clause.eval_tt_of_ne_flips mve.symm (ne.symm neq) } }
 end
 
 -- Formal proof of correctness, see encoding.lean
-theorem direct_xor_formula_encodes_Xor (l : list (literal V)) :
-  formula_encodes Xor (direct_xor' l) l :=
+theorem direct_xor_formula_encodes_parity (l : list (literal V)) :
+  formula_encodes parity (direct_xor' l) l :=
 begin
   intro τ,
   split,
   { intro h,
     use τ,
-    rw eval_direct_xor_eq_eval_Xor l τ,
-    exact ⟨h, assignment.eqod.refl τ _⟩ },
+    rw eval_direct_xor_eq_eval_parity l τ,
+    exact ⟨h, assignment.agree_on.refl τ _⟩ },
   { rintros ⟨σ, he, hs⟩,
-    rw [eval_eq_of_eqod hs, ← eval_direct_xor_eq_eval_Xor l σ],
+    rw [eval_eq_of_agree_on hs, ← eval_direct_xor_eq_eval_parity l σ],
     exact he }
 end
 
@@ -209,16 +209,16 @@ begin
       exact ⟨mem_direct_xor_self _, hv⟩ } }
 end
 
-theorem direct_xor_encodes_Xor : encodes Xor (direct_xor : encoding V) :=
+theorem direct_xor_encodes_parity : encodes parity (direct_xor : enc_fn V) :=
 begin
   split,
   { intros l g hdis,
     rw ← direct_xor_eq_direct_xor,
-    exact direct_xor_formula_encodes_Xor l },
+    exact direct_xor_formula_encodes_parity l },
   { intros l g hdis,
     simp [direct_xor, dir_enc, vars_direct_xor] }
 end
 
 end direct_encoding
 
-end Xor
+end parity
