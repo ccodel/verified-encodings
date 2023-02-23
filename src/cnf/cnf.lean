@@ -278,6 +278,25 @@ assume h τ, (h τ).symm
   sequiv F₁ F₂ s → sequiv F₂ F₃ s → sequiv F₁ F₃ s :=
 assume h₁ h₂ τ, ⟨λ h, (h₂ τ).mp ((h₁ τ).mp h), λ h, (h₁ τ).mpr ((h₂ τ).mpr h)⟩
 
+/-! # Output to CNF -/
+
+def toCNF [decidable_eq V] (var_to_num : V → nat) (F : cnf V) : string :=
+  let numVars : nat := F.vars.card in
+  let numClauses : nat := F.length in
+  "p cnf " ++ numVars.repr ++ " " ++ numClauses.repr ++ "\n" ++
+  string.join (F.map (λ cl, 
+    (string.join (cl.map (λ lit,
+      match lit with
+      | Pos v := (var_to_num v).repr ++ " "
+      | Neg v := "-" ++ (var_to_num v).repr ++ " "
+      end))) ++ "0\n"
+  ))
+
+private def F₀ : cnf nat := [[Pos 1, Neg 2], [Pos 2, Neg 3], [Pos 3, Neg 1]]
+private def S₀ := F₀.toCNF id
+#eval S₀
+#eval S₀.length
+
 /-! # agree_on theorems -/
 
 theorem eval_eq_of_agree_on [decidable_eq V] {τ₁ τ₂ : assignment V} {f : cnf V} :

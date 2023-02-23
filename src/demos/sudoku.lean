@@ -19,6 +19,8 @@ import data.nat.basic
 import data.list.basic
 import data.list.range
 
+import system.io  -- Used to print the Sudoku formula to a file
+
 open nat fin list function
 open literal encoding constraint clause cnf assignment
 open alk amk distinct
@@ -107,8 +109,8 @@ direct_alo_encodes_alo
 def sudoku_encoding (n : nat) : enc_fn V :=
 let L : list (fin (n^2) × fin (n^2)) := cp (n^2) (n^2) in
 encoding.len_check (
-  (encoding.fold (L.map (λ ⟨row, col⟩,
-    (encoding.append amo_enc alo_enc) ∘ (filter_by_idx (is_cell_lit row col))))) ++
+  (fold (L.map (λ ⟨row, col⟩,
+    (append amo_enc alo_enc) ∘ (filter_by_idx (is_cell_lit row col))))) ++
   (fold (L.map (λ ⟨col, num⟩, 
     amo_enc ∘ (filter_by_idx (is_row_lit col num))))) ++
   (fold (L.map (λ ⟨row, num⟩, 
@@ -116,24 +118,6 @@ encoding.len_check (
   (fold ((list.zip (cp n n) (fin.range (n^2))).map (λ ⟨⟨srow, scol⟩, num⟩, 
     amo_enc ∘ (filter_by_idx (is_square_lit srow scol num))))))
 (λ len, len = n^6)
-
-/-
-def l₀ : list (literal nat) := (fin.range (3^6)).map (λ n, Pos n)
-def hl₀ : length l₀ = 3^6 := by dec_trivial
-def g₀ : gensym nat := ⟨3^6, id, injective_id⟩
-
-def l₁ : list (literal nat) := (fin.range (2^6)).map (λ n, Pos n)
-def hl₁ : length l₁ = 2^6 := by dec_trivial
-def g₁ : gensym nat := ⟨2^6, id, injective_id⟩
-
-def enc_l₀ := (sudoku_encoding 3 l₀ g₀)
-def enc_l₁ := (sudoku_encoding 2 l₁ g₁)
-def enc_l₀' := (sudoku_encoding 3 [Pos 1] g₀)
-
-#eval enc_l₀.1  -- Sudoku encoding for n = 3
-#eval enc_l₀'.1 -- This is supposed to fail, since the list is too small
-#eval enc_l₁.1  -- Sudoku encoding for n = 2
--/
 
 theorem encodes_sudoku (n : nat) : encodes (is_valid_sudoku n) (sudoku_encoding n : enc_fn V) :=
 begin
@@ -150,3 +134,20 @@ begin
   rintros ⟨⟨fin₁, fin₂⟩, fin₃⟩ hfins,
   exact filter_by_idx_encodes_of_encodes _ amo_enc_is_correct
 end
+
+/-! # Printing out the CNF file -/
+
+def L₀ : list (literal nat) := (list.range (3^6)).map (λ n, Pos (n + 1))
+def g₀ : gensym nat := ⟨3^6 + 1, id, injective_id⟩
+def F₀ : cnf nat := (sudoku_encoding 3 L₀ g₀).1
+
+-- #eval F₀.toCNF id -- uncomment to see the formula in the Lean output window
+
+-- This function prints a formula string to a file
+-- Warning: Be very careful with this. Lean can overwrite files easily.
+def strToFile (filename formula : string) : io unit := do
+  h ← io.mk_file_handle filename io.mode.write,
+  io.fs.put_str_ln h formula,
+  io.fs.close h
+
+-- #eval strToFile "./sudoku.cnf" (F₀.toCNF id) -- uncomment this to trigger the write
