@@ -1,0 +1,38 @@
+The library currently is organized as follows.
+
+src/                    Main directory for the library.
+  | basic.lean          Contains basic facts on natural numbers, lists, sets, boolean operations, etc.
+  | cardinality/        Cardinality constraints and encodings.
+  | cnf/                Definitions and theorems on basic CNF objects and operations.
+  | demos/              Demos. Currently contains only the Sudoku example.
+  | parity/             Parity constraints and encodings.
+
+cardinality/
+  | alk.lean            Defines the at-least-k constraint, alk. Proves the at-least-one encoding correct.
+  | amk.lean            Defines the at-most-k constraint, amk.
+  | direct_amo.lean     Defines the direct at-most-one encoding and proves it correct and well-behaved.
+  | distinct.lean       A helpful notion for the at-most-one constraint that refers to two distinct positions in a list.
+  | sinz_amk.lean       Defines the Sinz at-most-k constraint and proves it correct and well-behaved.
+  | sinz_amo.lean       Defines the Sinz at-most-one constraint, recursively and non-, and proves it correct and well-behaved.
+
+cnf/
+  | assignment.lean     Defines the assignment type, the agree_on judgment, and aite to combine two assignments.
+  | clause.lean         Defines the clause type, and various operations (including vars and evaluation under assignments).
+  | cnf.lean            Defines the CNF formula type, and various operations. Depend heavily on clause.lean.
+  | encoding.lean       Defines the constraint type, the encoding (function) type, correctness, and well-behavedness.
+
+  | gensym.lean         Defines the gensym object that generates fresh variables. Used in encodings.
+  | literal.lean        Defines the literal type and its evaluation under truth assignments.
+
+demos/
+  | sudoku.lean         The Sudoku constraint and encoding. Comprised of amo sub-encodings.
+
+parity/
+  | parity.lean              Defines the parity constraint and establishes its semantics.
+  | direct_parity.lean       Defines the direct encoding for the parity constraint and proves it correct and well-behaved. 
+                               Uses explode.lean.
+  | explode.lean             A supporting file that defines the explode function, which enumerates all 
+                              2^n clauses over negations on a list of literals.
+  | parity.lean              Defines the parity constraint and establishes its semantics.
+  | recursive_parity.lean    Defines the recursive parity encoding and proves it correct and well-behaved. The linear
+                               and pooled encodings are provided as special cases of the more general encoding.

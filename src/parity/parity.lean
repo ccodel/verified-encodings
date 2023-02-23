@@ -6,7 +6,8 @@ Carnegie Mellon University
 -/
 
 import basic
-import cnf.literal cnf.assignment cnf.clause cnf.cnf cnf.explode cnf.encoding
+import cnf.literal cnf.assignment cnf.clause cnf.cnf cnf.encoding
+import parity.explode
 import data.list.basic data.finset.basic
 
 universe u

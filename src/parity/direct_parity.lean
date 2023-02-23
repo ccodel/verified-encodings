@@ -12,6 +12,7 @@ import cnf.clause
 import cnf.cnf
 import cnf.encoding
 import parity.parity
+import parity.explode
 import basic
 
 import data.list.basic
