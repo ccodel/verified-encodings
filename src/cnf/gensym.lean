@@ -275,7 +275,7 @@ begin
   simp, use n, rw add_comm,
 end
 
-theorem nth_not_mem_nfresh_stock {i : nat} : ∀ ⦃a : α⦄, 
+theorem nth_not_mem_nfresh_stock {g : gensym α} {i : nat} : ∀ ⦃a : α⦄, 
   a ∈ (g.nfresh i).1 → a ∉ (g.nfresh i).2.stock :=
 begin
   induction i with i ih generalizing g;
@@ -290,7 +290,7 @@ begin
       rw ← nfresh_succ_gensym_eq_fresh_nfresh_gensym g,
       rw nfresh_succ_gensym_eq_nfresh_fresh_gensym g,
       exact nfresh_stock_subset _ _ },
-    { exact ih _ hmem } }
+    { exact ih hmem } }
 end
 
 theorem nth_mem_nfresh_of_lt {i j : nat} : i < j → g.nth i ∈ (g.nfresh j).1 :=

@@ -57,12 +57,12 @@ def sinz_amo : enc_fn V
     si_to_next_xi g idx lit) l),
   (g.nfresh (length l - 1)).2⟩
 
-def nth_from_var (g : gensym V) (v : V) : nat → nat
+def var_idx (g : gensym V) (v : V) : nat → nat
 | 0       := 0
-| (i + 1) := if v = g.nth (i + 1) then i + 1 else nth_from_var i
+| (i + 1) := if v = g.nth (i + 1) then i + 1 else var_idx i
 
-theorem nth_from_var_eq_nth_of_le (g : gensym V) {i n : nat} (Hi : i ≤ n) :
-  nth_from_var g (g.nth i) n = i :=
+theorem var_idx_eq_nth_of_le (g : gensym V) {i n : nat} (Hi : i ≤ n) :
+  var_idx g (g.nth i) n = i :=
 begin
   induction n with n ih generalizing i,
   { cases i,
@@ -71,8 +71,8 @@ begin
       exact absurd Hi (succ_ne_zero _) } },
   { by_cases hn : i = n.succ,
     { subst hn,
-      simp [nth_from_var] },
-    { simp [nth_from_var, nth_ne_of_ne hn],
+      simp [var_idx] },
+    { simp [var_idx, nth_ne_of_ne hn],
       exact ih (le_of_lt_succ (lt_of_le_of_ne Hi hn)) } }
 end
 
@@ -131,7 +131,7 @@ end
 -- If the var is in l, then use τ.
 -- Otherwise, the signal variable is true if at least 1 variable before is true
 def sinz_amo_tau (l : list (literal V)) (g : gensym V) (τ : assignment V) : assignment V :=
-  aite (clause.vars l) τ (λ v, (alk 1).eval τ (l.take ((nth_from_var g v (length l - 1)) + 1)))
+  aite (clause.vars l) τ (λ v, (alk 1).eval τ (l.take ((var_idx g v (length l - 1)) + 1)))
 
 theorem sinz_amo_eval_tt_under_sinz_amo_tau (hdis : disj l g) : ∀ (τ : assignment V), 
   (amk 1).eval τ l = tt → (sinz_amo l g).1.eval (sinz_amo_tau l g τ) = tt :=
@@ -162,7 +162,7 @@ begin
           rw [← amk_eval_eq_alk_succ_eval, bool.bnot_ff, amz_eval_tt_iff_forall_eval_ff] at hamk,
           exact hamk (nth_le_mem_take_of_lt hi (lt_succ_self i)) },
         { use [Pos (g.nth i), mem_cons_of_mem _ (mem_singleton_self _)],
-          rw [literal.eval, sinz_amo_tau, aite_neg (disj_right.mp hdis (nth_mem_stock g i)), nth_from_var_eq_nth_of_le],
+          rw [literal.eval, sinz_amo_tau, aite_neg (disj_right.mp hdis (nth_mem_stock g i)), var_idx_eq_nth_of_le],
           { exact halk },
           { simp only [length, succ_add_sub_one], exact le_of_lt_succ hi } } } },
     { unfold si_to_next_si at hc,
@@ -171,13 +171,13 @@ begin
         rw eval_tt_iff_exists_literal_eval_tt,
         cases halk : (alk 1).eval τ ((lit₁ :: lit₂ :: ls).take (i + 1)),
         { use [Neg (g.nth i), mem_cons_self _ _],
-          rw [literal.eval, sinz_amo_tau, aite_neg (disj_right.mp hdis (nth_mem_stock g i)), nth_from_var_eq_nth_of_le],
+          rw [literal.eval, sinz_amo_tau, aite_neg (disj_right.mp hdis (nth_mem_stock g i)), var_idx_eq_nth_of_le],
           { have hamk : !((alk 1).eval τ ((lit₁ :: lit₂ :: ls).take (i + 1))) = !ff, exact congr_arg bnot halk,
             rw [← amk_eval_eq_alk_succ_eval, bool.bnot_ff] at hamk,
             rw ← amk_eval_eq_alk_succ_eval, exact hamk },
           { simp only [length, succ_add_sub_one], exact le_of_lt_succ hi } },
         { use [Pos (g.nth (i + 1)), mem_cons_of_mem _ (mem_singleton_self _)],
-          rw [literal.eval, sinz_amo_tau, aite_neg (disj_right.mp hdis (nth_mem_stock g (i + 1))), nth_from_var_eq_nth_of_le],
+          rw [literal.eval, sinz_amo_tau, aite_neg (disj_right.mp hdis (nth_mem_stock g (i + 1))), var_idx_eq_nth_of_le],
           { rw alk.eval_tt_of_sublist_of_eval_tt (take_sublist_of_le (le_succ (i + 1)) _),
             { exact halk },
             { exact _inst_1 } },
@@ -191,7 +191,7 @@ begin
         cases halk : (alk 1).eval τ ((lit₁ :: lit₂ :: ls).take (i + 1)),
         { use [Neg (g.nth i), mem_cons_self _ _],
           rw [literal.eval, sinz_amo_tau],
-          rw [aite_neg (disj_right.mp hdis (nth_mem_stock g i)), nth_from_var_eq_nth_of_le],
+          rw [aite_neg (disj_right.mp hdis (nth_mem_stock g i)), var_idx_eq_nth_of_le],
           { rw bnot_eq_true_eq_eq_ff, exact halk },
           { simp only [length, succ_add_sub_one], exact le_of_lt_succ (lt_of_succ_lt hi) } },
         { use [((lit₁ :: lit₂ :: ls).nth_le i.succ hi).flip, mem_cons_of_mem _ (mem_singleton_self _)],
@@ -208,8 +208,8 @@ end
 theorem sinz_amo_mem_vars {l : list (literal V)} {g : gensym V} :
   ∀ ⦃v⦄, v ∈ (sinz_amo l g).1.vars → v ∈ (clause.vars l) ∨ (v ∈ (g.nfresh (length l - 1)).1) :=
 begin
-  -- TODO redo proof with si_to_si_mem theorems?
-  induction l with lit₁ ls generalizing g,
+  -- redo proof with si_to_si_mem theorems?
+  cases l with lit₁ ls,
   { simp [sinz_amo] },
   { cases ls with lit₂ ls,
     { simp [sinz_amo] },
@@ -263,7 +263,7 @@ begin
       apply (set.mem_union _ _ _).mpr,
       rcases sinz_amo_mem_vars hv with (hv | hv),
       { exact or.inl hv },
-      { exact or.inr ⟨nfresh_mem_stock hv, nth_not_mem_nfresh_stock _ hv⟩ } } }
+      { exact or.inr ⟨nfresh_mem_stock hv, nth_not_mem_nfresh_stock hv⟩ } } }
 end
 
 theorem signal_eval_tt_if_xi_eval_tt {i : nat} {hi : i < length l}

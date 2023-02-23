@@ -54,11 +54,11 @@ end
 variables {p : list (literal V) → list (literal V)} (hp : ∀ l, perm l (p l))
 
 def recursive_parity : enc_fn V 
-| l g :=  if h : length l ≤ k then direct_xor l g else
+| l g :=  if h : length l ≤ k then direct_parity l g else
     have length (p (Pos g.fresh.1 :: (l.drop (k - 1)))) < length l,
       from (perm.length_eq (hp (Pos g.fresh.1 :: (l.drop (k - 1))))) ▸ 
              (drop_len_lt _ hk (not_le.mp h)),
-    ⟨(direct_xor (l.take (k - 1) ++ [(Neg g.fresh.1)]) g.fresh.2).1 ++
+    ⟨(direct_parity (l.take (k - 1) ++ [(Neg g.fresh.1)]) g.fresh.2).1 ++
      (recursive_parity (p (Pos g.fresh.1 :: (l.drop (k - 1)))) g.fresh.2).1,
      (recursive_parity (p (Pos g.fresh.1 :: (l.drop (k - 1)))) g.fresh.2).2⟩ 
 using_well_founded {
@@ -67,13 +67,13 @@ using_well_founded {
 }
 
 def recursive_parity' : enc_fn V 
-| l g :=  if h : length l ≤ k then direct_xor l g else
+| l g :=  if h : length l ≤ k then direct_parity l g else
     let ⟨y, g₁⟩ := g.fresh in
     have length (p (Pos y :: (l.drop (k - 1)))) < length l,
       from (perm.length_eq (hp (Pos y :: (l.drop (k - 1))))) ▸ 
            (drop_len_lt _ hk (not_le.mp h)),
     let ⟨Frec, g₂⟩ := recursive_parity' (p (Pos y :: (l.drop (k - 1)))) g₁ in
-      ⟨(direct_xor (l.take (k - 1) ++ [Neg y]) g₁).1 ++ Frec, g₂⟩
+      ⟨(direct_parity (l.take (k - 1) ++ [Neg y]) g₁).1 ++ Frec, g₂⟩
 using_well_founded {
   rel_tac := λ a b, `[exact ⟨_, measure_wf (λ σ, list.length σ.1)⟩],
   dec_tac := tactic.assumption
@@ -93,7 +93,7 @@ begin
              (drop_len_lt _ hk (not_le.mp hl)) }
 end
 
-lemma tseitin_base_case : length l ≤ k → (recursive_parity hk hp l g).1 = (direct_xor l g).1 :=
+lemma tseitin_base_case : length l ≤ k → (recursive_parity hk hp l g).1 = (direct_parity l g).1 :=
 assume h, by { rw recursive_parity, simp only [h, if_true] }
 
 theorem mem_recursive_parity_vars_of_mem_vars (hdis : disj l g) :
@@ -101,14 +101,14 @@ theorem mem_recursive_parity_vars_of_mem_vars (hdis : disj l g) :
 begin
   induction l using strong_induction_on_lists with l ih generalizing g,
   by_cases hl : length l ≤ k,
-  { rw [tseitin_base_case hk hp hl, ← direct_xor_eq_direct_xor, vars_direct_xor], refl },
+  { rw [tseitin_base_case hk hp hl, ← direct_parity_eq_direct_parity, vars_direct_parity], refl },
   { intros v hv,
     rw recursive_parity,
     simp [hl],
     rw [← take_append_drop (k - 1) l, clause.vars_append] at hv,
     rcases finset.mem_union.mp hv with (h | h),
     { left,
-      rw [← direct_xor_eq_direct_xor, vars_direct_xor, clause.vars_append],
+      rw [← direct_parity_eq_direct_parity, vars_direct_parity, clause.vars_append],
       exact finset.mem_union_left _ h },
     { rw not_le at hl,
       have h₁ := drop_len_lt (Pos g.fresh.1) hk hl,
@@ -126,7 +126,7 @@ begin
   induction l using strong_induction_on_lists with l ih generalizing g,
   rw recursive_parity,
   by_cases hl : length l ≤ k,
-  { simp [hl], exact (direct_xor_encodes_parity.2 hdis) },
+  { simp [hl], exact (direct_parity_encodes_parity.2 hdis) },
   { simp [hl],
     have h₁ := drop_len_lt (Pos g.fresh.1) hk (not_le.mp hl),
     rw perm.length_eq (hp (Pos g.fresh.1 :: drop (k - 1) l)) at h₁,
@@ -136,8 +136,8 @@ begin
     split,
     { exact subset_trans ihred.1 (fresh_stock_subset g) },
     { split,
-      { rw ← direct_xor_eq_direct_xor, -- TODO: shortcut vars_direct_xor
-        rw vars_direct_xor,
+      { rw ← direct_parity_eq_direct_parity, -- TODO: shortcut vars_direct_parity
+        rw vars_direct_parity,
         rw clause.vars_append,
         intros v hv,
         rcases finset.mem_union.mp hv with (h | h),
@@ -166,12 +166,12 @@ theorem not_mem_recursive_parity_vars_of_not_mem_vars_of_not_mem_stock (hdis : d
 begin
   induction l using strong_induction_on_lists with l ih generalizing g,
   by_cases hl : length l ≤ k,
-  { rw [tseitin_base_case hk hp hl, ← direct_xor_eq_direct_xor, vars_direct_xor l], tautology },
+  { rw [tseitin_base_case hk hp hl, ← direct_parity_eq_direct_parity, vars_direct_parity l], tautology },
   { intros hvars hg,
     rw recursive_parity,
     simp [hl, not_or_distrib],
     split,
-    { rw [← direct_xor_eq_direct_xor, vars_direct_xor, clause.vars_append],
+    { rw [← direct_parity_eq_direct_parity, vars_direct_parity, clause.vars_append],
       apply finset.not_mem_union.mpr,
       split,
       { exact (λ hcon, absurd (((vars_subset_of_subset (take_subset (k - 1) l))) hcon) hvars) },
@@ -200,7 +200,7 @@ begin
   intro he,
   induction l using strong_induction_on_lists with l ih generalizing g,
   by_cases hl : length l ≤ k,
-  { rw [tseitin_base_case hk hp hl, ← direct_xor_eq_direct_xor, eval_direct_xor_eq_eval_parity] at he,
+  { rw [tseitin_base_case hk hp hl, ← direct_parity_eq_direct_parity, eval_direct_parity_eq_eval_parity] at he,
     exact he },
   { rw recursive_parity at he,
     simp [hl, cnf.eval_append] at he,
@@ -210,7 +210,7 @@ begin
     rw perm.length_eq (hp (Pos g.fresh.1 :: drop (k - 1) l)) at h₁,
     rw (disj_perm hp) at h₂,
     have ihred := ih _ h₁ h₂ hrec,
-    rw [← direct_xor_eq_direct_xor, eval_direct_xor_eq_eval_parity] at hdir,
+    rw [← direct_parity_eq_direct_parity, eval_direct_parity_eq_eval_parity] at hdir,
     rw eval_eq_bodd_count_tt at ihred hdir |-,
     rw ← clause.count_tt_perm (hp (Pos g.fresh.1 :: drop (k - 1) l)) at ihred,
     have := congr_arg ((clause.count_tt τ)) (take_append_drop (k - 1) l).symm,
@@ -231,7 +231,7 @@ begin
     induction l using strong_induction_on_lists with l ih generalizing g τ,
     by_cases hl : length l ≤ k,
     { rw tseitin_base_case hk hp hl,
-      exact direct_xor_formula_encodes_parity l τ },
+      exact direct_parity_formula_encodes_parity l τ },
     { have h₁ := drop_len_lt (Pos g.fresh.1) hk (not_le.mp hl),
       rw perm.length_eq (hp (Pos g.fresh.1 :: drop (k - 1) l)) at h₁,
       have h₂ := disjoint_fresh_of_disjoint k hdis,
@@ -277,8 +277,8 @@ begin
           use aite (recursive_parity hk hp (p (Pos g.fresh.1 :: (l.drop (k - 1)))) g.fresh.2).1.vars γ₂ γ,
           split,
           { split,
-            { rw ← direct_xor_eq_direct_xor,
-              simp [eval_direct_xor_eq_eval_parity, eval_eq_bodd_count_tt, 
+            { rw ← direct_parity_eq_direct_parity,
+              simp [eval_direct_parity_eq_eval_parity, eval_eq_bodd_count_tt, 
               clause.count_tt_append, bodd_add, literal.eval, hg],
               have : g.fresh.1 ∈ clause.vars (Pos g.fresh.1 :: (l.drop (k - 1))),
               { exact mem_vars_cons_self _ _ },
@@ -322,8 +322,8 @@ begin
           use aite (recursive_parity hk hp (p (Pos g.fresh.1 :: (l.drop (k - 1)))) g.fresh.2).1.vars γ₂ γ,
           split,
           { split,
-            { rw ← direct_xor_eq_direct_xor,
-              simp [eval_direct_xor_eq_eval_parity, eval_eq_bodd_count_tt, 
+            { rw ← direct_parity_eq_direct_parity,
+              simp [eval_direct_parity_eq_eval_parity, eval_eq_bodd_count_tt, 
                 clause.count_tt_append, bodd_add, literal.eval, hg],
               have : g.fresh.1 ∈ clause.vars (Pos g.fresh.1 :: (l.drop (k - 1))),
               { exact mem_vars_cons_self _ _ },
