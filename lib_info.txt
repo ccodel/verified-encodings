@@ -12,8 +12,8 @@ cardinality/
   | amk.lean            Defines the at-most-k constraint, amk.
   | direct_amo.lean     Defines the direct at-most-one encoding and proves it correct and well-behaved.
   | distinct.lean       A helpful notion for the at-most-one constraint that refers to two distinct positions in a list.
-  | sinz_amk.lean       Defines the Sinz at-most-k constraint and proves it correct and well-behaved.
-  | sinz_amo.lean       Defines the Sinz at-most-one constraint, recursively and non-, and proves it correct and well-behaved.
+  | sc_amk.lean       Defines the sequential counter at-most-k constraint and proves it correct and well-behaved.
+  | sc_amo.lean       Defines the sequential counter at-most-one constraint, recursively and non-, and proves it correct and well-behaved.
 
 cnf/
   | assignment.lean     Defines the assignment type, the agree_on judgment, and aite to combine two assignments.

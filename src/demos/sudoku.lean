@@ -10,7 +10,7 @@ import cnf.cnf
 import cnf.encoding
 
 import cardinality.direct_amo
-import cardinality.sinz_amo
+import cardinality.sc_amo
 import cardinality.distinct
 import cardinality.alk
 import cardinality.amk
@@ -24,7 +24,7 @@ import system.io  -- Used to print the Sudoku formula to a file
 open nat fin list function
 open literal encoding constraint clause cnf assignment
 open alk amk distinct
-open direct_amo sinz_amo
+open direct_amo sc_amo
 
 variables {α V : Type*} [decidable_eq V] [inhabited V] {n : nat} (srow scol : fin n) (row col num : fin (n^2))
 

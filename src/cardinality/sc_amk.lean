@@ -1,5 +1,5 @@
 /-
-The Sinz at-most-one encoding.
+The sequential counter at-most-one encoding.
 
 Authors: Cayden Codel, Jeremy Avigad, Marijn Heule
 Carnegie Mellon University
@@ -15,7 +15,7 @@ import cardinality.alk
 
 variables {V : Type*} [inhabited V] [decidable_eq V]
 
-namespace sinz_amk
+namespace sc_amk
 
 open list nat prod
 open literal clause cnf assignment distinct gensym encoding amk alk
@@ -40,7 +40,7 @@ def matrix (g : gensym V) (n : nat) : sig_var_matrix V :=
 @[inline] def ternary (S : sig_var_matrix V) (n row col : nat) (lit : literal V) : cnf V :=
   if (0 < col) then [[lit.flip, Neg (S row (col - 1)), Pos (S (row + 1) col)]] else []
 
-def sinz_amk (k : nat) : enc_fn V
+def sc_amk (k : nat) : enc_fn V
 | []       g := ⟨[], g⟩
 | l        g :=
   let n := length l in
@@ -56,13 +56,13 @@ def sinz_amk (k : nat) : enc_fn V
    [[Neg (S k (n - 1))]],
    (g.nfresh ((k + 1) * length l)).2⟩
 
-theorem sinz_amk_mem_vars :
-  ∀ ⦃v⦄, v ∈ (sinz_amk k l g).1.vars → v ∈ (clause.vars l) ∨ (v ∈ (g.nfresh ((k + 1) * length l)).1) :=
+theorem sc_amk_mem_vars :
+  ∀ ⦃v⦄, v ∈ (sc_amk k l g).1.vars → v ∈ (clause.vars l) ∨ (v ∈ (g.nfresh ((k + 1) * length l)).1) :=
 begin
   cases l with lit₁ ls,
-  { simp [sinz_amk] },
+  { simp [sc_amk] },
   { intros v hv,
-    simp [sinz_amk, -length, -map_with_index_cons] at hv,
+    simp [sc_amk, -length, -map_with_index_cons] at hv,
     rcases hv with (hmem | ⟨row, hrow, col, hcol, hmem⟩ | ⟨row, hrow, _, ⟨_, col, ⟨hcol, rfl⟩, rfl⟩, h⟩ | rfl),
     { rcases mem_vars_iff_exists_mem_clause_and_mem.mp hmem with ⟨c, hc, hv⟩,
       simp [-length, -map_with_index_cons] at hc,
@@ -122,38 +122,38 @@ begin
   exact disj_right.mp hdis (nth_mem_stock _ _)
 end
  
-theorem xi_to_si_mem_sinz_amk (g : gensym V) {i : nat} (Hi : i < length l) :
-  [(l.nth_le i Hi).flip, Pos (matrix g (length l) 0 i)] ∈ (sinz_amk k l g).1 :=
+theorem xi_to_si_mem_sc_amk (g : gensym V) {i : nat} (Hi : i < length l) :
+  [(l.nth_le i Hi).flip, Pos (matrix g (length l) 0 i)] ∈ (sc_amk k l g).1 :=
 begin
   cases l with lit₁ ls, { simp at Hi, contradiction },
-  rw sinz_amk,
+  rw sc_amk,
   simp [xi_to_si, -map_with_index_cons],
   left,
   use [(lit₁ :: ls).nth_le i Hi, i, Hi],
   exact ⟨rfl, rfl⟩
 end
 
-theorem si_to_next_si_mem_sinz_amk (g : gensym V) {row col : nat} :
+theorem si_to_next_si_mem_sc_amk (g : gensym V) {row col : nat} :
   row < (k + 1) → col < (length l) - 1 →  
-  [Neg (matrix g (length l) row col), Pos (matrix g (length l) row (col + 1))] ∈ (sinz_amk k l g).1 :=
+  [Neg (matrix g (length l) row col), Pos (matrix g (length l) row (col + 1))] ∈ (sc_amk k l g).1 :=
 begin
   intros hrow hcol,
   cases l with lit₁ ls, { simp at hcol, contradiction },
-  rw sinz_amk,
+  rw sc_amk,
   simp [si_to_next_si, -map_with_index_cons],
   right, left,
   use [row, hrow, col, hcol],
   simp at hcol, simp [hcol]
 end
 
-theorem ternary_mem_sinz_amk (g : gensym V) {row col : nat} (hcol : col < length l) :
+theorem ternary_mem_sc_amk (g : gensym V) {row col : nat} (hcol : col < length l) :
   row < k → 0 < col → 
   [(l.nth_le col hcol).flip, Neg (matrix g (length l) row (col - 1)), 
-    Pos (matrix g (length l) (row + 1) col)] ∈ (sinz_amk k l g).1 :=
+    Pos (matrix g (length l) (row + 1) col)] ∈ (sc_amk k l g).1 :=
 begin
   intros hr hc,
   cases l with lit₁ ls, { simp at hcol, contradiction },
-  rw sinz_amk,
+  rw sc_amk,
   simp [ternary, -map_with_index_cons],
   right, right,
   use [row, hr, [[((lit₁ :: ls).nth_le col hcol).flip, Neg (matrix g (ls.length + 1) row (col - 1)),
@@ -163,13 +163,13 @@ begin
   { exact mem_singleton_self _ }
 end
 
-theorem neg_final_mem_sinz_amk (g : gensym V) (l : list (literal V)) :
-  l ≠ [] → [Neg (matrix g (length l) k ((length l) - 1))] ∈ (sinz_amk k l g).1 :=
+theorem neg_final_mem_sc_amk (g : gensym V) (l : list (literal V)) :
+  l ≠ [] → [Neg (matrix g (length l) k ((length l) - 1))] ∈ (sc_amk k l g).1 :=
 begin
   cases l with lit₁ ls,
   { intro hcon, contradiction },
   { intro hnil,
-    rw sinz_amk,
+    rw sc_amk,
     simp only [mem_append, mem_singleton, eq_self_iff_true, and_self, or_true] }
 end
 
@@ -179,7 +179,7 @@ def row_and_col_from_var (S : sig_var_matrix V) (n : nat) (v : V) : nat → nat 
 | (r + 1) 0       := if v = S (r + 1) 0 then ⟨r + 1, 0⟩ else row_and_col_from_var r (n - 1)
 | (r + 1) (c + 1) := if v = S (r + 1) (c + 1) then ⟨r + 1, c + 1⟩ else row_and_col_from_var (r + 1) c 
 
-def sinz_amk_tau (l : list (literal V)) (g : gensym V) (τ : assignment V) : assignment V :=
+def sc_amk_tau (l : list (literal V)) (g : gensym V) (τ : assignment V) : assignment V :=
   aite (clause.vars l) τ 
     (λ v, let ⟨r, c⟩ := row_and_col_from_var (matrix g (length l)) (length l) v (k + 1) ((length l) - 1) in
        (alk (r + 1)).eval τ (l.take (c + 1)))
@@ -267,13 +267,13 @@ begin
         exact absurd hcon (ne_of_lt hrow') } } }
 end
 
-theorem sinz_amk_eval_tt_under_sinz_amk_tau {k : nat} (hdis : disj l g) : ∀ (τ : assignment V),
-  (amk k).eval τ l = tt → (sinz_amk k l g).1.eval (sinz_amk_tau k l g τ) = tt :=
+theorem sc_amk_eval_tt_under_sc_amk_tau {k : nat} (hdis : disj l g) : ∀ (τ : assignment V),
+  (amk k).eval τ l = tt → (sc_amk k l g).1.eval (sc_amk_tau k l g τ) = tt :=
 begin
   intros τ heval,
   cases l with lit₁ ls,
-  { simp [sinz_amk] },
-  { rw sinz_amk,
+  { simp [sc_amk] },
+  { rw sc_amk,
     simp [-map_with_index_cons],
     split,
     { rw eval_tt_iff_forall_clause_eval_tt,
@@ -284,17 +284,17 @@ begin
       cases hlit : ((lit₁ :: ls).nth_le i hi).eval τ,
       { use [((lit₁ :: ls).nth_le i hi).flip],
         split, { exact mem_cons_self _ _ },
-        { simp only [eval_flip, bnot_eq_true_eq_eq_ff, sinz_amk_tau],
+        { simp only [eval_flip, bnot_eq_true_eq_eq_ff, sc_amk_tau],
           rw aite_pos_lit (mem_vars_of_mem (nth_le_mem (lit₁ :: ls) i hi)),
           exact hlit } },
       { use [Pos (matrix g (ls.length + 1) 0 i)],
         simp [literal.eval],
-        rw sinz_amk_tau,
+        rw sc_amk_tau,
         have := (matrix_not_mem_vars hdis 0 i),
         rw length at this |-,
         rw [aite_neg this, succ_sub_one],
         rw row_and_col_from_var_eq_row_and_col_of_lt g (zero_le (_ + 1)) hi (lt_succ_self _),
-        { rw sinz_amk_tau._match_1,
+        { rw sc_amk_tau._match_1,
           rw alo_eval_tt_iff_exists_eval_tt,
           use [((lit₁ :: ls).nth_le _ hi), nth_le_mem_take_of_lt hi (lt_succ_self _), hlit] },
         { exact (λ hcon, absurd hcon.symm (succ_ne_zero k)) } } },
@@ -308,21 +308,21 @@ begin
       cases halk : (alk (row + 1)).eval τ ((lit₁ :: ls).take (col + 1)),
       { use [Neg (matrix g (ls.length + 1) row col), mem_cons_self _ _],
         simp [literal.eval],
-        rw sinz_amk_tau,
+        rw sc_amk_tau,
         have := (matrix_not_mem_vars hdis row col),
         rw length at this,
         rw aite_neg this, simp,
         rw row_and_col_from_var_eq_row_and_col_of_lt g (le_of_lt hrow) (lt_succ_of_lt hcol) (lt_succ_self _),
-        { rw sinz_amk_tau._match_1, exact halk },
+        { rw sc_amk_tau._match_1, exact halk },
         { exact (λ hcon, absurd hcon (ne_of_lt hrow)) } },
       { use Pos (matrix g (ls.length + 1) row (col + 1)),
         simp [literal.eval],
-        rw sinz_amk_tau,
+        rw sc_amk_tau,
         have := (matrix_not_mem_vars hdis row (col + 1)),
         rw length at this,
         rw aite_neg this, simp,
         rw row_and_col_from_var_eq_row_and_col_of_lt g (le_of_lt hrow) (succ_lt_succ hcol) (lt_succ_self _),
-        { rw sinz_amk_tau._match_1,
+        { rw sc_amk_tau._match_1,
           exact eval_take_succ_tt_of_eval_take_tt halk },
         { exact (λ _, succ_le_of_lt hcol) } } },
     split,
@@ -338,36 +338,36 @@ begin
         cases hlit : ((lit₁ :: ls).nth_le _ hcol).eval τ,
         { use [((lit₁ :: ls).nth_le _ hcol).flip, mem_cons_self _ _],
           simp [eval_flip, -nth_le],
-          rw sinz_amk_tau,
+          rw sc_amk_tau,
           rw aite_pos_lit (mem_vars_of_mem (nth_le_mem (lit₁ :: ls) _ hcol)),
           exact hlit },
         { cases halk : (alk (row + 1)).eval τ ((lit₁ :: ls).take (col + 1)),
           { use [Neg (matrix g (ls.length + 1) row col)],
             simp [literal.eval],
-            rw sinz_amk_tau,
+            rw sc_amk_tau,
             have := (matrix_not_mem_vars hdis row col),
             rw length at this,
             rw aite_neg this, simp,
             rw row_and_col_from_var_eq_row_and_col_of_lt g (le_of_lt (lt_succ_of_lt hrow)) (lt_of_succ_lt hcol) (lt_succ_self _),
-            { rw sinz_amk_tau._match_1, exact halk },
+            { rw sc_amk_tau._match_1, exact halk },
             { rintro rfl, exact absurd (lt_of_succ_lt hrow) (not_lt.mpr (le_refl _)) } },
           { use [Pos (matrix g (ls.length + 1) (row + 1) (col + 1))],
             simp [literal.eval],
-            rw sinz_amk_tau,
+            rw sc_amk_tau,
             have := (matrix_not_mem_vars hdis (row + 1) (col + 1)),
             rw length at this,
             rw aite_neg this, simp,
             rw row_and_col_from_var_eq_row_and_col_of_lt g 
               (succ_le_of_lt (lt_succ_of_lt hrow)) hcol (lt_succ_self _),
-            { rw sinz_amk_tau._match_1, rw alk.eval_take_tail_pos hlit, exact halk },
+            { rw sc_amk_tau._match_1, rw alk.eval_take_tail_pos hlit, exact halk },
             { exact (λ hcon, absurd hcon (ne_of_lt (succ_lt_succ hrow))) } } } } },
     { simp [literal.eval],
-      rw sinz_amk_tau,
+      rw sc_amk_tau,
       have := (matrix_not_mem_vars hdis k ls.length),
       rw length at this,
       rw aite_neg this, simp,
       rw row_and_col_from_var_eq_row_and_col_of_lt g (le_succ k) (lt_succ_self _) (lt_succ_self _),
-      { rw sinz_amk_tau._match_1,
+      { rw sc_amk_tau._match_1,
         simp,
         rw [amk_eval_eq_alk_succ_eval, bnot_eq_true_eq_eq_ff] at heval, exact heval },
       { exact (λ _, le_refl _) } } }
@@ -375,14 +375,14 @@ end
 
 -- TODO: verify if need hdis later...
 theorem signal_semantics {k : nat} :
-  (sinz_amk k l g).1.eval τ = tt → ∀ ⦃row col : nat⦄, row < k + 1 → col < length l → 
+  (sc_amk k l g).1.eval τ = tt → ∀ ⦃row col : nat⦄, row < k + 1 → col < length l → 
   τ (matrix g (length l) row col) = ff → (amk row).eval τ (l.take (col + 1)) = tt :=
 begin
   intros heval row col hrow hcol htau,
   rw eval_tt_iff_forall_clause_eval_tt at heval,
   induction row with row ihr generalizing col,
   { induction col with col ihc,
-    { have := heval _ (xi_to_si_mem_sinz_amk k g hcol),
+    { have := heval _ (xi_to_si_mem_sc_amk k g hcol),
       simp [eval_flip, literal.eval, htau] at this,
       cases l with lit₁ ls,
       { simp at hcol, contradiction },
@@ -397,10 +397,10 @@ begin
           { simp at hcol,
             have : col < (lit₁ :: ls).length - 1,
             { simp only [length, add_succ_sub_one, add_zero], exact succ_lt_succ_iff.mp hcol },
-            have := heval _ (si_to_next_si_mem_sinz_amk k g hrow this),
+            have := heval _ (si_to_next_si_mem_sc_amk k g hrow this),
             rw length at htau htau',
             simp [literal.eval, htau', htau] at this, contradiction } } },
-      { have := heval _ (xi_to_si_mem_sinz_amk k g hcol),
+      { have := heval _ (xi_to_si_mem_sc_amk k g hcol),
         simp [literal.eval, eval_flip, hlit, htau] at this, contradiction } } },
   { induction col with col ihc,
     { cases l with lit₁ ls; simp },
@@ -419,28 +419,28 @@ begin
             { simp at hcol, contradiction },
             { have : col < (lit₁ :: ls).length - 1,
               { simp only [length, add_succ_sub_one, add_zero], exact succ_lt_succ_iff.mp hcol },
-              have := heval _ (si_to_next_si_mem_sinz_amk k g hrow this),
+              have := heval _ (si_to_next_si_mem_sc_amk k g hrow this),
               rw length at htau htau'',
               simp [literal.eval, htau, htau''] at this, contradiction } } },
-        { have := heval _ (ternary_mem_sinz_amk k g hcol (succ_lt_succ_iff.mp hrow) (ne_zero.pos (succ col))),
+        { have := heval _ (ternary_mem_sc_amk k g hcol (succ_lt_succ_iff.mp hrow) (ne_zero.pos (succ col))),
           simp [literal.eval, eval_flip, hlit, htau', htau] at this,
           contradiction } } } }
 end
 
-theorem sinz_amk_formula_encodes_amk : is_correct (amk k) (sinz_amk k : enc_fn V) :=
+theorem sc_amk_formula_encodes_amk : is_correct (amk k) (sc_amk k : enc_fn V) :=
 begin
   intros l g hdis τ,
   split,
   { intro hamk,
-    use [sinz_amk_tau k l g τ, sinz_amk_eval_tt_under_sinz_amk_tau hdis τ hamk],
+    use [sc_amk_tau k l g τ, sc_amk_eval_tt_under_sc_amk_tau hdis τ hamk],
     intros v hv,
-    rw [sinz_amk_tau, aite_pos hv] },
+    rw [sc_amk_tau, aite_pos hv] },
   { rintros ⟨σ, hs, hagree_on⟩,
     have hs_copy := hs,
     rw eval_tt_iff_forall_clause_eval_tt at hs,
     cases l with lit₁ ls,
     { simp },
-    { have hfinal := hs _ (neg_final_mem_sinz_amk k g (lit₁ :: ls) (ne_nil_of_mem (mem_cons_self _ _))),
+    { have hfinal := hs _ (neg_final_mem_sc_amk k g (lit₁ :: ls) (ne_nil_of_mem (mem_cons_self _ _))),
       simp [literal.eval] at hfinal,
       have : ls.length < (lit₁ :: ls).length,
       { rw length, exact lt_succ_self _ },
@@ -455,26 +455,26 @@ begin
   exact (add_one_mul a b).symm,
 end
 
-theorem sinz_amk_is_wb : is_wb (sinz_amk k : enc_fn V) :=
+theorem sc_amk_is_wb : is_wb (sc_amk k : enc_fn V) :=
 begin
   intros l g hdis,
   cases l with lit₁ ls,
-  { simp [sinz_amk] },
+  { simp [sc_amk] },
   { split,
-    { simp [sinz_amk],
+    { simp [sc_amk],
       exact nfresh_stock_subset g ((k + 1) * (length ls + 1)) },
     { intros v hv,
-      rcases sinz_amk_mem_vars k hv with (h | h),
+      rcases sc_amk_mem_vars k hv with (h | h),
       { exact set.mem_union_left _ h },
       { apply set.mem_union_right,
         split,
         { exact nfresh_mem_stock h },
-        { rw sinz_amk,
+        { rw sc_amk,
           unfold prod.snd,
           exact nth_not_mem_nfresh_stock h } } } }
 end
 
-theorem sinz_amk_encodes_amk : encodes (amk k) (sinz_amk k : enc_fn V) :=
-⟨sinz_amk_formula_encodes_amk k, sinz_amk_is_wb k⟩
+theorem sc_amk_encodes_amk : encodes (amk k) (sc_amk k : enc_fn V) :=
+⟨sc_amk_formula_encodes_amk k, sc_amk_is_wb k⟩
 
-end sinz_amk
+end sc_amk
